@@ -31,9 +31,14 @@
 - Audio format: webm via MediaRecorder API
 
 ## Dev Commands
-- Backend: `uvicorn app.main:app --reload`
+- Backend: `cd app && uv run uvicorn main:app --reload`
 - Frontend: `npm run dev` (Vite)
 - Lint/Typecheck: Run per-stack (check package.json / pyproject.toml)
+
+## Important Notes
+- Python imports require running from app/ directory (e.g., `cd app && uv run uvicorn main:app`)
+- The project uses Supabase for PostgreSQL + Auth + Storage
+- Use local `.env` for credentials (never commit to git)
 
 ## Critical Files
 - `app/` - FastAPI backend (routes, services, models)
