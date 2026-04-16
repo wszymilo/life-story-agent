@@ -30,6 +30,6 @@ build/
 .env.*.local
 .vercel
 *.tsbuildinfo
-supabase/.temp
+supabase/.temp/
 
 /plan.md
