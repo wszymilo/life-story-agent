@@ -35,6 +35,12 @@
 - Frontend: `npm run dev` (Vite)
 - Lint/Typecheck: Run per-stack (check package.json / pyproject.toml)
 
+## Git Operations - IMPORTANT
+- **DO NOT automatically commit and push changes**
+- Always ask the user before committing: "Ready to commit - shall I proceed?"
+- Wait for explicit confirmation before running git push
+- Exception: Only if user explicitly asks to commit/push
+
 ## Important Notes
 - Python imports require running from app/ directory (e.g., `cd app && uv run uvicorn main:app`)
 - The project uses Supabase for PostgreSQL + Auth + Storage
