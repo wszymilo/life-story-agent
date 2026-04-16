@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "steps": {
+    "install": {
+      "commands": ["cd app && uv sync"]
+    },
+    "build": {
+      "inputs": [{"step": "install"}],
+      "commands": []
+    }
+  },
+  "deploy": {
+    "startCommand": "cd app && uv run uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "variables": {
+      "PORT": "$PORT",
+      "SUPABASE_URL": "$SUPABASE_URL",
+      "SUPABASE_ANON_KEY": "$SUPABASE_ANON_KEY",
+      "SUPABASE_SERVICE_KEY": "$SUPABASE_SERVICE_KEY",
+      "ENVIRONMENT": "production",
+      "LOG_LEVEL": "$LOG_LEVEL",
+      "CORS_ORIGINS": "$CORS_ORIGINS"
+    }
+  }
+}
