@@ -19,7 +19,7 @@ export async function signInWithMagicLink(email: string): Promise<AuthResult> {
     }
 
     return { success: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
@@ -33,7 +33,7 @@ export async function signOut(): Promise<AuthResult> {
     }
 
     return { success: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
