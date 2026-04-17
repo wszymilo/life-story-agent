@@ -1,5 +1,6 @@
 import structlog
 from api.deps import CurrentUser, get_current_user
+from api.routes import users
 from config import get_settings
 from db.client import get_supabase_client
 from fastapi import Depends, FastAPI
@@ -57,3 +58,6 @@ async def db_check():
 async def get_me(current_user: CurrentUser = Depends(get_current_user)):
     """Get current authenticated user."""
     return {"id": str(current_user.id), "email": current_user.email}
+
+
+app.include_router(users.router, prefix="/api")
