@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { AuthProvider } from './context/AuthContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoginScreen } from './components/LoginScreen'
+import { OnboardingScreen } from './components/OnboardingScreen'
+import { DebugScreen } from './components/DebugScreen'
 
 function Timeline() {
   return (
@@ -28,21 +32,72 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function OnboardingCheck({ children, isOnboardingRoute = false }: { children: React.ReactNode; isOnboardingRoute?: boolean }) {
+  const { user, loading, profileLoading, isProfileComplete } = useAuth()
+
+  if (loading || profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    )
+  }
+
+  if (user && isProfileComplete === true) {
+    if (isOnboardingRoute) {
+      return <Navigate to="/" replace />
+    }
+    return <>{children}</>
+  }
+
+  if (user && isProfileComplete === false) {
+    if (isOnboardingRoute) {
+      return <>{children}</>
+    }
+    return <Navigate to="/onboarding" replace />
+  }
+
+  return <>{children}</>
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/debug" element={<DebugScreen />} />
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <OnboardingCheck isOnboardingRoute={true}>
+              <OnboardingScreen />
+            </OnboardingCheck>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <OnboardingCheck>
+              <Timeline />
+            </OnboardingCheck>
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  )
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginScreen />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Timeline />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 
