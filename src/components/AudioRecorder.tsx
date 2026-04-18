@@ -3,9 +3,11 @@ import { useRecorder } from '../hooks/useRecorder'
 
 interface AudioRecorderProps {
   onRecordingComplete?: (blob: Blob) => void
+  disabled?: boolean
+  isUploading?: boolean
 }
 
-export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
+export function AudioRecorder({ onRecordingComplete, disabled, isUploading }: AudioRecorderProps) {
   const {
     startRecording,
     stopRecording,
@@ -74,7 +76,8 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       {!isRecording && !audioBlob && (
         <button
           onClick={handleRecord}
-          className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg"
+          disabled={disabled}
+          className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Start recording"
         >
           <span className="w-8 h-8 bg-white rounded-full" />
@@ -84,14 +87,15 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
       {isRecording && (
         <button
           onClick={handleStop}
-          className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg"
+          disabled={disabled}
+          className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
           aria-label="Stop recording"
         >
           <span className="w-8 h-8 bg-white rounded" />
         </button>
       )}
 
-      {audioBlob && (
+      {audioBlob && !isUploading && (
         <div className="flex flex-col items-center gap-4">
           <div className="text-green-600 font-medium">Recording saved!</div>
           <button
@@ -100,6 +104,12 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
           >
             Record Another
           </button>
+        </div>
+      )}
+
+      {audioBlob && isUploading && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="text-blue-600 font-medium">Uploading...</div>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import structlog
 from api.deps import CurrentUser, get_current_user
-from api.routes import audio, events, users
+from api.routes import audio, events, interview, tts, users
 from config import get_settings
 from db.client import get_supabase_client
 from fastapi import Depends, FastAPI
@@ -63,3 +63,5 @@ async def get_me(current_user: CurrentUser = Depends(get_current_user)):
 app.include_router(users.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(audio.router, prefix="/api")
+app.include_router(interview.router, prefix="/api")
+app.include_router(tts.router, prefix="/api")

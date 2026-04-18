@@ -1,6 +1,5 @@
 import io
 import uuid
-from datetime import date, datetime
 from typing import Optional
 
 from api.deps import CurrentUser, get_current_user
@@ -10,7 +9,7 @@ from api.schemas.event import (
     EventResponse,
     EventUpdate,
 )
-from api.utils import require_data
+from api.utils import get_next_sequence_order, require_data, serialize_update_data
 from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from services.transcription import transcribe_audio_data, transcribe_audio_url
@@ -34,7 +33,7 @@ async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
         .execute()
     )
 
-    return event_data[0], recordings_response.data
+    return event_data, recordings_response.data
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -113,11 +112,7 @@ async def update_event(
         event_data, _ = await get_event_with_recordings(request, event_id)
         return event_data
 
-    update_data["updated_at"] = datetime.now().isoformat()
-
-    for key, value in update_data.items():
-        if isinstance(value, date):
-            update_data[key] = value.isoformat()
+    serialize_update_data(update_data)
 
     response = (
         supabase.table("events")
@@ -233,17 +228,7 @@ async def add_recording(
         transcript = None
         transcription_error = str(e)
 
-    max_order_response = (
-        supabase.table("audio_recordings")
-        .select("sequence_order")
-        .eq("event_id", str(event_id))
-        .order("sequence_order", desc=True)
-        .limit(1)
-        .execute()
-    )
-    sequence_order = 1
-    if max_order_response.data and max_order_response.data[0].get("sequence_order"):
-        sequence_order = max_order_response.data[0]["sequence_order"] + 1
+    sequence_order = get_next_sequence_order(supabase, "audio_recordings", str(event_id))
 
     recording_data = {
         "event_id": str(event_id),
@@ -256,6 +241,23 @@ async def add_recording(
 
     response = supabase.table("audio_recordings").insert(recording_data).execute()
     require_data(response, "Failed to create recording")
+
+    # If this is a follow-up response, mark the question as answered
+    if recording_type == "follow_up_response":
+        current_question = (
+            supabase.table("follow_up_questions")
+            .select("id")
+            .eq("event_id", str(event_id))
+            .is_("audio_url", "null")
+            .eq("was_answered", False)
+            .order("sequence_order", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if current_question.data:
+            supabase.table("follow_up_questions").update(
+                {"was_answered": True, "audio_url": public_url}
+            ).eq("id", current_question.data[0]["id"]).execute()
 
     if transcription_error:
         recording_with_detail = {
