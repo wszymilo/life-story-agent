@@ -1,6 +1,5 @@
 import io
 import uuid
-from datetime import date, datetime
 from typing import Optional
 
 from api.deps import CurrentUser, get_current_user
@@ -10,7 +9,7 @@ from api.schemas.event import (
     EventResponse,
     EventUpdate,
 )
-from api.utils import require_data
+from api.utils import require_data, serialize_update_data
 from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from services.transcription import transcribe_audio_data, transcribe_audio_url
@@ -113,11 +112,7 @@ async def update_event(
         event_data, _ = await get_event_with_recordings(request, event_id)
         return event_data
 
-    update_data["updated_at"] = datetime.now().isoformat()
-
-    for key, value in update_data.items():
-        if isinstance(value, date):
-            update_data[key] = value.isoformat()
+    serialize_update_data(update_data)
 
     response = (
         supabase.table("events")

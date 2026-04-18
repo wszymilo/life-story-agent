@@ -2,19 +2,18 @@
 
 from datetime import date, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi import HTTPException
-
 from api.utils import (
+    get_event_for_user,
+    get_next_sequence_order,
+    get_transcripts_from_recordings,
     require_data,
     serialize_update_data,
-    get_transcripts_from_recordings,
     validate_recordings_exist,
-    get_next_sequence_order,
-    get_event_for_user,
 )
+from fastapi import HTTPException
 
 
 class MockResponse:

@@ -1,7 +1,7 @@
 import uuid
 
 from api.deps import CurrentUser, get_current_user
-from api.utils import require_data
+from api.utils import get_transcripts_from_recordings, require_data, validate_recordings_exist
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
@@ -34,17 +34,8 @@ async def analyze_event_transcript(
         .execute()
     )
 
-    if not recordings_response.data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No recordings found for this event",
-        )
-
-    transcripts = [
-        r.get("transcript")
-        for r in recordings_response.data
-        if r.get("transcript")
-    ]
+    validate_recordings_exist(recordings_response, "No recordings found for this event")
+    transcripts = get_transcripts_from_recordings(recordings_response.data)
 
     if not transcripts:
         raise HTTPException(
@@ -109,17 +100,8 @@ async def generate_follow_up(
         .execute()
     )
 
-    if not recordings_response.data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No recordings found for this event",
-        )
-
-    transcripts = [
-        r.get("transcript")
-        for r in recordings_response.data
-        if r.get("transcript")
-    ]
+    validate_recordings_exist(recordings_response, "No recordings found for this event")
+    transcripts = get_transcripts_from_recordings(recordings_response.data)
 
     if not transcripts:
         raise HTTPException(

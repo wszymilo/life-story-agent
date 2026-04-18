@@ -1,11 +1,10 @@
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from api.deps import CurrentUser
 from httpx import ASGITransport, AsyncClient
-
 
 # ============================================================================
 # Fixtures: Basic Mocks

@@ -1,5 +1,4 @@
 import uuid
-from datetime import date, datetime
 from typing import Any
 
 from api.deps import CurrentUser, get_current_user
@@ -9,7 +8,7 @@ from api.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from api.utils import require_data
+from api.utils import require_data, serialize_update_data
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -66,11 +65,7 @@ async def update_current_user_profile(
     if not update_data:
         return await get_user_with_relatives(request, current_user.id)
 
-    for key, value in update_data.items():
-        if isinstance(value, date):
-            update_data[key] = value.isoformat()
-
-    update_data["updated_at"] = datetime.utcnow().isoformat()
+    serialize_update_data(update_data)
 
     response = supabase.table("users").update(update_data).eq("id", str(current_user.id)).execute()
     require_data(response, "User not found")
