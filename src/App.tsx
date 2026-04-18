@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoginScreen } from './components/LoginScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { RecordingScreen } from './components/RecordingScreen'
+import { InterviewScreen } from './components/InterviewScreen'
 import { DebugScreen } from './components/DebugScreen'
 
 function Timeline() {
@@ -81,6 +82,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RecordingScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/interview/:eventId"
+        element={
+          <ProtectedRoute>
+            <InterviewScreen />
           </ProtectedRoute>
         }
       />

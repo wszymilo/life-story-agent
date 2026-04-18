@@ -34,7 +34,7 @@ async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
         .execute()
     )
 
-    return event_data[0], recordings_response.data
+    return event_data, recordings_response.data
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -256,6 +256,23 @@ async def add_recording(
 
     response = supabase.table("audio_recordings").insert(recording_data).execute()
     require_data(response, "Failed to create recording")
+
+    # If this is a follow-up response, mark the question as answered
+    if recording_type == "follow_up_response":
+        current_question = (
+            supabase.table("follow_up_questions")
+            .select("id")
+            .eq("event_id", str(event_id))
+            .is_("audio_url", "null")
+            .eq("was_answered", False)
+            .order("sequence_order", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if current_question.data:
+            supabase.table("follow_up_questions").update(
+                {"was_answered": True, "audio_url": public_url}
+            ).eq("id", current_question.data[0]["id"]).execute()
 
     if transcription_error:
         recording_with_detail = {
