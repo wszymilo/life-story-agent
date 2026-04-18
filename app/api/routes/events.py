@@ -9,7 +9,7 @@ from api.schemas.event import (
     EventResponse,
     EventUpdate,
 )
-from api.utils import require_data, serialize_update_data
+from api.utils import get_next_sequence_order, require_data, serialize_update_data
 from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from services.transcription import transcribe_audio_data, transcribe_audio_url
@@ -228,17 +228,7 @@ async def add_recording(
         transcript = None
         transcription_error = str(e)
 
-    max_order_response = (
-        supabase.table("audio_recordings")
-        .select("sequence_order")
-        .eq("event_id", str(event_id))
-        .order("sequence_order", desc=True)
-        .limit(1)
-        .execute()
-    )
-    sequence_order = 1
-    if max_order_response.data and max_order_response.data[0].get("sequence_order"):
-        sequence_order = max_order_response.data[0]["sequence_order"] + 1
+    sequence_order = get_next_sequence_order(supabase, "audio_recordings", str(event_id))
 
     recording_data = {
         "event_id": str(event_id),

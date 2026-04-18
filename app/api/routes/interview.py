@@ -1,7 +1,13 @@
 import uuid
 
 from api.deps import CurrentUser, get_current_user
-from api.utils import get_transcripts_from_recordings, require_data, validate_recordings_exist
+from api.utils import (
+    get_event_for_user,
+    get_next_sequence_order,
+    get_transcripts_from_recordings,
+    require_data,
+    validate_recordings_exist,
+)
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
@@ -18,14 +24,7 @@ async def analyze_event_transcript(
     """Analyze an event's transcript to extract time, place, people, and themes."""
     supabase = await get_supabase_client()
 
-    event_response = (
-        supabase.table("events")
-        .select("*")
-        .eq("id", str(event_id))
-        .eq("user_id", str(current_user.id))
-        .execute()
-    )
-    require_data(event_response, "Event not found")
+    await get_event_for_user(supabase, str(event_id), str(current_user.id))
 
     recordings_response = (
         supabase.table("audio_recordings")
@@ -84,14 +83,7 @@ async def generate_follow_up(
     """Generate a follow-up question for an event."""
     supabase = await get_supabase_client()
 
-    event_response = (
-        supabase.table("events")
-        .select("*")
-        .eq("id", str(event_id))
-        .eq("user_id", str(current_user.id))
-        .execute()
-    )
-    require_data(event_response, "Event not found")
+    await get_event_for_user(supabase, str(event_id), str(current_user.id))
 
     recordings_response = (
         supabase.table("audio_recordings")
@@ -134,18 +126,7 @@ async def generate_follow_up(
             detail=str(e),
         )
 
-    max_order_response = (
-        supabase.table("follow_up_questions")
-        .select("sequence_order")
-        .eq("event_id", str(event_id))
-        .order("sequence_order", desc=True)
-        .limit(1)
-        .execute()
-    )
-
-    sequence_order = 1
-    if max_order_response.data and max_order_response.data[0].get("sequence_order"):
-        sequence_order = max_order_response.data[0]["sequence_order"] + 1
+    sequence_order = get_next_sequence_order(supabase, "follow_up_questions", str(event_id))
 
     question_data = {
         "event_id": str(event_id),
@@ -174,14 +155,7 @@ async def skip_follow_up_question(
     """Mark a follow-up question as skipped (not answered)."""
     supabase = await get_supabase_client()
 
-    event_response = (
-        supabase.table("events")
-        .select("id")
-        .eq("id", str(event_id))
-        .eq("user_id", str(current_user.id))
-        .execute()
-    )
-    require_data(event_response, "Event not found")
+    await get_event_for_user(supabase, str(event_id), str(current_user.id))
 
     question_response = (
         supabase.table("follow_up_questions")
