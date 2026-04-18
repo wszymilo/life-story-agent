@@ -11,9 +11,8 @@ from api.schemas.event import (
     EventUpdate,
 )
 from api.utils import require_data
-from db.client import get_supabase_client, create_storage_client
+from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
-
 from services.transcription import transcribe_audio_data, transcribe_audio_url
 
 router = APIRouter(prefix="/events", tags=["events"])

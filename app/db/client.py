@@ -1,14 +1,13 @@
-from typing import Union
 
 from config import get_settings
+from supabase.lib.client_options import SyncClientOptions
 
 from supabase import AsyncClient, Client, create_client
-from supabase.lib.client_options import SyncClientOptions
 
 settings = get_settings()
 
 
-def create_storage_client(timeout: Union[int, float] = 120) -> Client:
+def create_storage_client(timeout: int | float = 120) -> Client:
     """Create a Supabase client with custom storage timeout."""
     return create_client(
         settings.supabase_url,

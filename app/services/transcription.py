@@ -71,4 +71,4 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl") -> str:
             raise RuntimeError("Transcription failed: Invalid API key")
         if "api_key" in err_msg.lower():
             raise RuntimeError("Transcription failed: API key issue")
-        raise RuntimeError(f"Transcription failed")
+        raise RuntimeError("Transcription failed")
