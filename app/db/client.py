@@ -1,8 +1,19 @@
-from config import get_settings
 
-from supabase import AsyncClient, create_client
+from config import get_settings
+from supabase.lib.client_options import SyncClientOptions
+
+from supabase import AsyncClient, Client, create_client
 
 settings = get_settings()
+
+
+def create_storage_client(timeout: int | float = 120) -> Client:
+    """Create a Supabase client with custom storage timeout."""
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_service_key,
+        options=SyncClientOptions(storage_client_timeout=timeout),
+    )
 
 
 async def get_supabase_client() -> AsyncClient:
@@ -11,7 +22,9 @@ async def get_supabase_client() -> AsyncClient:
 
 
 def get_sync_supabase_client():
-    """Get sync Supabase client for storage operations."""
-    from supabase import create_client
-
-    return create_client(settings.supabase_url, settings.supabase_service_key)
+    """Get sync Supabase client for storage operations with default timeout."""
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_service_key,
+        options=SyncClientOptions(storage_client_timeout=120),
+    )

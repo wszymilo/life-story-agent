@@ -12,6 +12,11 @@ def mock_user_id():
 
 
 @pytest.fixture
+def mock_event_id():
+    return uuid.uuid4()
+
+
+@pytest.fixture
 def mock_current_user(mock_user_id):
     return CurrentUser(id=mock_user_id, email="test@example.com")
 
@@ -26,6 +31,36 @@ def mock_user_data(mock_user_id):
         "country_of_origin": "Poland",
         "created_at": "2024-01-01T00:00:00Z",
         "updated_at": "2024-01-01T00:00:00Z",
+    }
+
+
+@pytest.fixture
+def mock_event_data(mock_user_id, mock_event_id):
+    return {
+        "id": str(mock_event_id),
+        "user_id": str(mock_user_id),
+        "title": "My Life Story",
+        "time_anchor": None,
+        "time_anchor_date": None,
+        "place": None,
+        "status": "draft",
+        "summary": None,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+    }
+
+
+@pytest.fixture
+def mock_audio_recording_data(mock_event_id):
+    return {
+        "id": str(uuid.uuid4()),
+        "event_id": str(mock_event_id),
+        "sequence_order": 1,
+        "audio_url": "https://example.com/audio.webm",
+        "transcript": None,
+        "recording_type": "initial_story",
+        "duration_seconds": 60.0,
+        "created_at": "2024-01-01T00:00:00Z",
     }
 
 

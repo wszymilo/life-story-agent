@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoginScreen } from './components/LoginScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
+import { RecordingScreen } from './components/RecordingScreen'
 import { DebugScreen } from './components/DebugScreen'
 
 function Timeline() {
@@ -72,6 +73,14 @@ function AppRoutes() {
             <OnboardingCheck isOnboardingRoute={true}>
               <OnboardingScreen />
             </OnboardingCheck>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/record"
+        element={
+          <ProtectedRoute>
+            <RecordingScreen />
           </ProtectedRoute>
         }
       />
