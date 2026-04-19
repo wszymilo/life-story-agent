@@ -6,6 +6,7 @@ import { LoginScreen } from './components/LoginScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { RecordingScreen } from './components/RecordingScreen'
 import { InterviewScreen } from './components/InterviewScreen'
+import { SummaryScreen } from './components/SummaryScreen'
 import { DebugScreen } from './components/DebugScreen'
 
 function Timeline() {
@@ -90,6 +91,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <InterviewScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/summary/:eventId"
+        element={
+          <ProtectedRoute>
+            <SummaryScreen />
           </ProtectedRoute>
         }
       />

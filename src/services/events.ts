@@ -158,3 +158,21 @@ export async function retryTranscribe(recordingId: string): Promise<AudioRecordi
   }
   return response.json()
 }
+
+export interface CompletedEvent {
+  id: string
+  title: string
+  summary: string
+  status: string
+}
+
+export async function completeEvent(eventId: string): Promise<CompletedEvent> {
+  const response = await fetchApi(`/api/events/${eventId}/complete/`, {
+    method: 'POST',
+  })
+  if (!response.ok) {
+    const result = await response.json()
+    throw new Error(result.detail || 'Failed to complete event')
+  }
+  return response.json()
+}

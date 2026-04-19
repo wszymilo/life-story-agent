@@ -138,7 +138,11 @@ export function InterviewScreen() {
   }
 
   const handleEnd = () => {
-    navigate('/')
+    if (eventId) {
+      navigate(`/summary/${eventId}`)
+    } else {
+      navigate('/')
+    }
   }
 
   if (state === 'loading' || state === 'analyzing') {
