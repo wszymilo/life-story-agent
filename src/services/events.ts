@@ -1,5 +1,24 @@
 import { supabase } from '../lib/supabase'
 
+async function getAuthHeader(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const headers: HeadersInit = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = await getAuthHeader()
+  return fetch(url, {
+    ...options,
+    headers: { ...authHeaders, ...options.headers },
+    credentials: 'include',
+  })
+}
+
 export interface CreateEventInput {
   title: string
   time_anchor?: string
@@ -30,26 +49,7 @@ export interface AudioRecording {
   recording_type: string
   duration_seconds: number | null
   created_at: string
-  detail?: string  // For error messages when transcript fails
-}
-
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return headers
-}
-
-async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
-  const authHeaders = await getAuthHeader()
-  return fetch(url, {
-    ...options,
-    headers: { ...authHeaders, ...options.headers },
-    credentials: 'include',
-  })
+  detail?: string
 }
 
 export async function createEvent(data: CreateEventInput): Promise<EventData> {

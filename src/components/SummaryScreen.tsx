@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { completeEvent, CompletedEvent } from '../services/events'
 import { generateTTS } from '../services/interview'
+import { extractErrorMessage } from '../lib/errors'
 
 type SummaryState = 'loading' | 'ready' | 'playing' | 'error'
 
@@ -25,7 +26,7 @@ export function SummaryScreen() {
       setEvent(completedEvent)
       setState('ready')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate summary')
+      setError(extractErrorMessage(err, 'Failed to generate summary'))
       setState('error')
     }
   }
@@ -42,7 +43,7 @@ export function SummaryScreen() {
         setEvent(completedEvent)
         setState('ready')
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to generate summary')
+        setError(extractErrorMessage(err, 'Failed to generate summary'))
         setState('error')
       }
     }
@@ -77,7 +78,7 @@ export function SummaryScreen() {
     } catch (err) {
       setIsPlaying(false)
       setState('ready')
-      setError(err instanceof Error ? err.message : 'Failed to generate audio')
+      setError(extractErrorMessage(err, 'Failed to generate audio'))
     }
   }
 

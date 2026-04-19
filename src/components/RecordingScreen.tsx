@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { addRecording, createEvent, retryTranscribe } from '../services/events'
+import { extractErrorMessage } from '../lib/errors'
 
 type RecordingState = 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'
 
@@ -52,7 +53,7 @@ export function RecordingScreen() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process recording')
+      setError(extractErrorMessage(err, 'Failed to process recording'))
       setState('error')
     }
   }
@@ -71,7 +72,7 @@ export function RecordingScreen() {
         setError('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry transcription')
+      setError(extractErrorMessage(err, 'Failed to retry transcription'))
     } finally {
       setRetrying(false)
     }

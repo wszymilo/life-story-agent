@@ -1,5 +1,30 @@
 import { supabase } from '../lib/supabase'
 
+async function getAuthHeader(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const headers: HeadersInit = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+export async function fetchApi(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = await getAuthHeader()
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options.headers,
+    },
+  })
+  return response
+}
+
 export interface FollowUpQuestion {
   id: string
   event_id: string
@@ -32,31 +57,6 @@ export interface TranscriptAnalysis {
   key_events: string[]
   themes: string[]
   summary: string
-}
-
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return headers
-}
-
-export async function fetchApi(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const headers = await getAuthHeader()
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  })
-  return response
 }
 
 export async function analyzeEvent(eventId: string): Promise<TranscriptAnalysis> {
