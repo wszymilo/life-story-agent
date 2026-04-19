@@ -17,13 +17,6 @@ export function RecordingScreen() {
   const [retrying, setRetrying] = useState<boolean>(false)
   const [title, setTitle] = useState<string>('')
 
-  useEffect(() => {
-    if (urlEventId) {
-      setEventId(urlEventId)
-      loadExistingEvent(urlEventId)
-    }
-  }, [urlEventId])
-
   const loadExistingEvent = async (id: string) => {
     try {
       const event: EventData = await getEvent(id)
@@ -39,6 +32,14 @@ export function RecordingScreen() {
       console.error('Failed to load event:', err)
     }
   }
+
+  useEffect(() => {
+    if (urlEventId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEventId(urlEventId)
+      loadExistingEvent(urlEventId)
+    }
+  }, [urlEventId])
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     try {

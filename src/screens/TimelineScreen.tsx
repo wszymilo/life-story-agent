@@ -28,7 +28,19 @@ export function TimelineScreen() {
   }
 
   useEffect(() => {
-    handleRetry()
+    const loadEvents = async () => {
+      try {
+        setLoading(true)
+        setError('')
+        const data = await listEvents()
+        setEvents(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load events')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadEvents()
   }, [])
 
   if (loading) {
