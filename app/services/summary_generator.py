@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import Optional
 
 from api.schemas.summary import SummaryWithTitle
@@ -75,10 +76,14 @@ async def generate_summary(
     # Generate title from summary
     title = await _generate_title(client, summary, language)
 
+    # Extract time anchor date from content
+    time_anchor_date = await _extract_time_anchor(client, full_content, language)
+
     return SummaryWithTitle(
         summary=summary,
         title=title,
-        was_retried=was_retried
+        was_retried=was_retried,
+        time_anchor_date=time_anchor_date
     )
 
 
@@ -266,3 +271,66 @@ Return ONLY the title, nothing else."""
 
     except Exception:
         return "My Life Story"
+
+
+async def _extract_time_anchor(
+    client: AsyncOpenAI,
+    content: str,
+    language: str
+) -> Optional[date]:
+    """Extract primary date from story content for timeline sorting.
+
+    Returns:
+        date object if found, None otherwise
+    """
+
+    system_prompt = f"""You are a date extraction specialist. Your task is to find the
+primary date mentioned in this life story that would serve as a timeline anchor.
+
+Instructions:
+- Extract the most significant date mentioned (year required, month/day optional)
+- Look for: birth dates, wedding dates, life milestones, specific years mentioned
+- For stories about childhood, extract the birth year or year the person was young
+- For recent stories, extract the specific year the event occurred
+- Return ONLY the date in ISO format (YYYY-MM-DD), nothing else
+- If no specific date can be determined, return ONLY "NONE"
+
+Examples:
+- "I was born in 1945" → 1945-01-01
+- "My wedding was in June 1972" → 1972-06-01
+- "In 1950s we lived in Warsaw" → 1950-01-01
+- "I started working in 1985" → 1985-01-01
+
+Language: {language}"""
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Extract the primary date from this story:\n\n{content}"}
+            ],
+            max_tokens=50,
+            temperature=0.3,
+        )
+
+        date_str = response.choices[0].message.content or ""
+        date_str = date_str.strip().strip('"').strip("'")
+
+        if not date_str or date_str.upper() == "NONE":
+            return None
+
+        # Try to parse the date
+        for fmt in ["%Y-%m-%d", "%Y-%m", "%Y"]:
+            try:
+                parsed = datetime.strptime(date_str, fmt).date()
+                # Validate reasonable year range (1900-2030)
+                if 1900 <= parsed.year <= 2030:
+                    return parsed
+            except ValueError:
+                continue
+
+        return None
+
+    except Exception:
+        return None

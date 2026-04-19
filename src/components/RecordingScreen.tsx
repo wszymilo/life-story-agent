@@ -1,27 +1,54 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
-import { addRecording, createEvent, retryTranscribe } from '../services/events'
+import { addRecording, createEvent, retryTranscribe, getEvent, EventData } from '../services/events'
 import { extractErrorMessage } from '../lib/errors'
 
 type RecordingState = 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'
 
 export function RecordingScreen() {
   const navigate = useNavigate()
+  const { eventId: urlEventId } = useParams<{ eventId?: string }>()
   const [state, setState] = useState<RecordingState>('idle')
   const [transcript, setTranscript] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [recordingId, setRecordingId] = useState<string>('')
   const [eventId, setEventId] = useState<string>('')
   const [retrying, setRetrying] = useState<boolean>(false)
+  const [title, setTitle] = useState<string>('')
+
+  const loadExistingEvent = async (id: string) => {
+    try {
+      const event: EventData = await getEvent(id)
+      if (event.recordings && event.recordings.length > 0) {
+        const lastRecording = event.recordings[event.recordings.length - 1]
+        if (lastRecording.transcript) {
+          setTranscript(lastRecording.transcript)
+          setRecordingId(lastRecording.id)
+        }
+      }
+      setState('idle')
+    } catch (err) {
+      console.error('Failed to load event:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (urlEventId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEventId(urlEventId)
+      loadExistingEvent(urlEventId)
+    }
+  }, [urlEventId])
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     try {
       setState('uploading')
       setError('')
 
-      const event = await createEvent({ title: 'My Life Story' })
-        setEventId(event.id)
+      const eventTitle = title.trim() || 'My Life Story'
+      const event = await createEvent({ title: eventTitle })
+      setEventId(event.id)
 
       try {
         setState('transcribing')
@@ -154,6 +181,21 @@ export function RecordingScreen() {
           <p className="text-gray-600 mt-2">
             Press the button below and share your life story
           </p>
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            Title (optional)
+          </label>
+          <input
+            id="title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g., My childhood in Warsaw"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
+            maxLength={100}
+          />
         </div>
 
         {state === 'uploading' && (

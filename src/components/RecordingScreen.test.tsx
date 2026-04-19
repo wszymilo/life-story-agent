@@ -15,16 +15,19 @@ vi.mock('./AudioRecorder', () => ({
 const mockCreateEvent = vi.fn()
 const mockAddRecording = vi.fn()
 const mockRetryTranscribe = vi.fn()
+const mockGetEvent = vi.fn()
 const mockNavigate = vi.fn()
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  useParams: () => ({}),
 }))
 
 vi.mock('../services/events', () => ({
   createEvent: (...args: unknown[]) => mockCreateEvent(...args),
   addRecording: (...args: unknown[]) => mockAddRecording(...args),
   retryTranscribe: (...args: unknown[]) => mockRetryTranscribe(...args),
+  getEvent: (...args: unknown[]) => mockGetEvent(...args),
 }))
 
 describe('RecordingScreen', () => {
