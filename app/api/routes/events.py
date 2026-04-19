@@ -9,9 +9,16 @@ from api.schemas.event import (
     EventResponse,
     EventUpdate,
 )
-from api.utils import get_next_sequence_order, require_data, serialize_update_data
+from api.utils import (
+    get_event_for_user,
+    get_next_sequence_order,
+    get_transcripts_from_recordings,
+    require_data,
+    serialize_update_data,
+)
 from db.client import create_storage_client, get_supabase_client
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from services.summary_generator import generate_summary as generate_event_summary
 from services.transcription import transcribe_audio_data, transcribe_audio_url
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -181,11 +188,15 @@ async def add_recording(
     request: Request,
     event_id: uuid.UUID,
     file: UploadFile,
-    recording_type: str = "initial_story",
-    duration_seconds: Optional[float] = None,
+    recording_type: str = Form("initial_story"),
+    duration_seconds: Optional[float] = Form(None),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Add a recording to an event. Accepts audio file via multipart/form-data."""
+    import structlog
+    logger = structlog.get_logger()
+    logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type)
+
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -334,3 +345,104 @@ async def retry_transcribe(
     )
 
     return update_response.data[0]
+
+
+@router.post("/{event_id}/complete")
+@router.post("/{event_id}/complete/", status_code=status.HTTP_200_OK)
+async def complete_event(
+    request: Request,
+    event_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Complete an event session and generate summary.
+
+    Gathers all transcripts and Q&A, generates a grounded summary,
+    updates the event with summary and title, sets status to complete.
+    """
+    supabase = await get_supabase_client()
+
+    # Verify ownership
+    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+
+    # Check if already completed
+    if event.get("status") == "complete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event is already completed",
+        )
+
+    # Get all transcripts
+    recordings_response = (
+        supabase.table("audio_recordings")
+        .select("transcript", "recording_type")
+        .eq("event_id", str(event_id))
+        .execute()
+    )
+
+    transcripts = get_transcripts_from_recordings(recordings_response.data if recordings_response.data else [])
+
+    # Get Q&A from follow-up questions
+    questions_response = (
+        supabase.table("follow_up_questions")
+        .select("question_text", "was_answered", "audio_url")
+        .eq("event_id", str(event_id))
+        .execute()
+    )
+
+    questions_and_answers = []
+    if questions_response.data:
+        for q in questions_response.data:
+            if q.get("was_answered") and q.get("audio_url"):
+                # Get the answer transcript if available
+                answer_recording = (
+                    supabase.table("audio_recordings")
+                    .select("transcript")
+                    .eq("audio_url", q["audio_url"])
+                    .limit(1)
+                    .execute()
+                )
+                answer_text = None
+                if answer_recording.data and answer_recording.data[0].get("transcript"):
+                    answer_text = answer_recording.data[0]["transcript"]
+
+                questions_and_answers.append({
+                    "question": q.get("question_text", ""),
+                    "answer": answer_text or "",
+                })
+
+    # Generate summary
+    try:
+        summary_result = await generate_event_summary(
+            transcripts=transcripts,
+            questions_and_answers=questions_and_answers,
+            language="pl"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Summary generation failed: {str(e)}",
+        )
+
+    # Update event with summary and title
+    update_data = {
+        "summary": summary_result.summary,
+        "title": summary_result.title,
+        "status": "complete",
+    }
+    serialize_update_data(update_data)
+
+    updated_event = (
+        supabase.table("events")
+        .update(update_data)
+        .eq("id", str(event_id))
+        .execute()
+    )
+
+    require_data(updated_event, "Failed to update event")
+
+    return {
+        "id": str(event_id),
+        "title": summary_result.title,
+        "summary": summary_result.summary,
+        "status": "complete",
+    }

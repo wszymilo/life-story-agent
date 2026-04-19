@@ -1,5 +1,24 @@
 import { supabase } from '../lib/supabase'
 
+async function getAuthHeader(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const headers: HeadersInit = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = await getAuthHeader()
+  return fetch(url, {
+    ...options,
+    headers: { ...authHeaders, ...options.headers },
+    credentials: 'include',
+  })
+}
+
 export interface CreateEventInput {
   title: string
   time_anchor?: string
@@ -30,26 +49,7 @@ export interface AudioRecording {
   recording_type: string
   duration_seconds: number | null
   created_at: string
-  detail?: string  // For error messages when transcript fails
-}
-
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return headers
-}
-
-async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
-  const authHeaders = await getAuthHeader()
-  return fetch(url, {
-    ...options,
-    headers: { ...authHeaders, ...options.headers },
-    credentials: 'include',
-  })
+  detail?: string
 }
 
 export async function createEvent(data: CreateEventInput): Promise<EventData> {
@@ -155,6 +155,24 @@ export async function retryTranscribe(recordingId: string): Promise<AudioRecordi
   if (!response.ok) {
     const result = await response.json()
     throw new Error(result.detail || 'Failed to retry transcription')
+  }
+  return response.json()
+}
+
+export interface CompletedEvent {
+  id: string
+  title: string
+  summary: string
+  status: string
+}
+
+export async function completeEvent(eventId: string): Promise<CompletedEvent> {
+  const response = await fetchApi(`/api/events/${eventId}/complete/`, {
+    method: 'POST',
+  })
+  if (!response.ok) {
+    const result = await response.json()
+    throw new Error(result.detail || 'Failed to complete event')
   }
   return response.json()
 }

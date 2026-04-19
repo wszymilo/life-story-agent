@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { addRecording, createEvent, retryTranscribe } from '../services/events'
+import { extractErrorMessage } from '../lib/errors'
 
 type RecordingState = 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'
 
@@ -11,6 +12,7 @@ export function RecordingScreen() {
   const [transcript, setTranscript] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [recordingId, setRecordingId] = useState<string>('')
+  const [eventId, setEventId] = useState<string>('')
   const [retrying, setRetrying] = useState<boolean>(false)
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
@@ -19,6 +21,7 @@ export function RecordingScreen() {
       setError('')
 
       const event = await createEvent({ title: 'My Life Story' })
+        setEventId(event.id)
 
       try {
         setState('transcribing')
@@ -50,7 +53,7 @@ export function RecordingScreen() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process recording')
+      setError(extractErrorMessage(err, 'Failed to process recording'))
       setState('error')
     }
   }
@@ -69,7 +72,7 @@ export function RecordingScreen() {
         setError('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry transcription')
+      setError(extractErrorMessage(err, 'Failed to retry transcription'))
     } finally {
       setRetrying(false)
     }
@@ -92,12 +95,20 @@ export function RecordingScreen() {
               Story Recorded!
             </h1>
             <p className="text-gray-600 mb-6">{transcript}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="w-full py-4 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
-            >
-              Go to Timeline
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => navigate(`/interview/${eventId}`)}
+                className="w-full py-4 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
+              >
+                Continue to Interview
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full py-3 text-gray-600 hover:text-gray-800 text-sm"
+              >
+                Skip for now
+              </button>
+            </div>
           </div>
         </div>
       </div>

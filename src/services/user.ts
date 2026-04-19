@@ -8,6 +8,28 @@ function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: unknown[]) {
   }
 }
 
+async function getAuthHeader(): Promise<HeadersInit> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  const headers: HeadersInit = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+    log('debug', 'Auth: token present')
+  } else {
+    log('debug', 'Auth: no token')
+  }
+  return headers
+}
+
+async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = await getAuthHeader()
+  return fetch(url, {
+    ...options,
+    headers: { ...authHeaders, ...options.headers },
+    credentials: 'include',
+  })
+}
+
 export interface UserProfile {
   id: string
   email: string
@@ -24,29 +46,9 @@ export interface UserUpdate {
   country_of_origin?: string
 }
 
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-    log('debug', 'Auth: token present')
-  } else {
-    log('debug', 'Auth: no token')
-  }
-  return headers
-}
-
 export async function getUserProfile(): Promise<UserProfile> {
   log('debug', 'Fetching user profile')
-  const authHeaders = await getAuthHeader()
-  const response = await fetch('/api/users/me', {
-    headers: {
-      ...authHeaders,
-    },
-    credentials: 'include',
-  })
+  const response = await fetchApi('/api/users/me')
   if (!response.ok) {
     log('error', 'Profile fetch failed:', response.status, response.statusText)
     throw new Error('Failed to fetch user profile')
@@ -58,14 +60,9 @@ export async function getUserProfile(): Promise<UserProfile> {
 
 export async function updateUserProfile(data: UserUpdate): Promise<UserProfile> {
   log('debug', 'Updating user profile:', data)
-  const authHeaders = await getAuthHeader()
-  const response = await fetch('/api/users/me', {
+  const response = await fetchApi('/api/users/me', {
     method: 'PUT',
-    headers: {
-      ...authHeaders,
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
   if (!response.ok) {

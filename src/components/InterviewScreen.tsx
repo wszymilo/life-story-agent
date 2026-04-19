@@ -11,6 +11,7 @@ import {
   EventWithQuestions,
 } from '../services/interview'
 import { addRecording } from '../services/events'
+import { extractErrorMessage } from '../lib/errors'
 
 type InterviewState = 'loading' | 'analyzing' | 'ready' | 'playing' | 'recording' | 'complete' | 'error'
 
@@ -52,7 +53,7 @@ export function InterviewScreen() {
           setState('ready')
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load event')
+        setError(extractErrorMessage(err, 'Failed to load event'))
         setState('error')
       } finally {
         isLoadingRef.current = false
@@ -94,7 +95,7 @@ export function InterviewScreen() {
       }
     } catch (err) {
       console.error('TTS generation error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to play audio')
+      setError(extractErrorMessage(err, 'Failed to play audio'))
       setState('ready')
     }
   }
@@ -107,7 +108,7 @@ export function InterviewScreen() {
       await addRecording(eventId, audioBlob, 'follow_up_response')
       window.location.reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save response')
+      setError(extractErrorMessage(err, 'Failed to save response'))
       setState('ready')
     } finally {
       setIsUploading(false)
@@ -121,7 +122,7 @@ export function InterviewScreen() {
       await skipFollowUp(eventId, currentQuestion.id)
       window.location.reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to skip question')
+      setError(extractErrorMessage(err, 'Failed to skip question'))
     }
   }
 
@@ -133,12 +134,16 @@ export function InterviewScreen() {
       setCurrentQuestion(question as unknown as FollowUpQuestion)
       setState('ready')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate next question')
+      setError(extractErrorMessage(err, 'Failed to generate next question'))
     }
   }
 
   const handleEnd = () => {
-    navigate('/')
+    if (eventId) {
+      navigate(`/summary/${eventId}`)
+    } else {
+      navigate('/')
+    }
   }
 
   if (state === 'loading' || state === 'analyzing') {
