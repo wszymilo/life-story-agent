@@ -8,7 +8,7 @@ interface EventCardProps {
 
 export function EventCard({ event, onClick }: EventCardProps) {
   const navigate = useNavigate()
-  const isDraft = event.status === 'recording'
+  const isDraft = event.status === 'draft'
 
   const handleClick = () => {
     if (onClick) {

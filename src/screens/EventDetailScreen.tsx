@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEvent, deleteEvent, EventData, AudioRecording } from '../services/events'
+import { getEvent, deleteEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -49,8 +49,8 @@ export function EventDetailScreen() {
     }
   }
 
-  const playAudio = (recording: AudioRecording) => {
-    if (!recording.audio_url) return
+  const playAudio = async (recording: AudioRecording) => {
+    if (!event?.id) return
 
     if (playingId === recording.id) {
       audioRef.current?.pause()
@@ -62,10 +62,20 @@ export function EventDetailScreen() {
       audioRef.current.pause()
     }
 
-    audioRef.current = new Audio(recording.audio_url)
-    audioRef.current.onended = () => setPlayingId(null)
-    audioRef.current.play()
-    setPlayingId(recording.id)
+    try {
+      const blob = await streamAudio(event.id, recording.id)
+      const url = URL.createObjectURL(blob)
+      audioRef.current = new Audio(url)
+      audioRef.current.onended = () => {
+        setPlayingId(null)
+        URL.revokeObjectURL(url)
+      }
+      audioRef.current.play()
+      setPlayingId(recording.id)
+    } catch (err) {
+      console.error('Failed to play audio:', err)
+      alert('Failed to play audio')
+    }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -116,7 +126,7 @@ export function EventDetailScreen() {
     )
   }
 
-  const isDraft = event.status === 'recording'
+  const isDraft = event.status === 'draft'
   const displayDate = event.time_anchor_date || event.time_anchor
 
   return (

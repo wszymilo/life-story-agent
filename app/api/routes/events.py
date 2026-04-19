@@ -179,6 +179,77 @@ async def get_event_recordings(
     return recordings
 
 
+@router.get("/{event_id}/recordings/{recording_id}/audio")
+async def stream_recording_audio(
+    request: Request,
+    event_id: uuid.UUID,
+    recording_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Stream audio file for a recording."""
+    supabase = await get_supabase_client()
+
+    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    recording_response = (
+        supabase.table("audio_recordings")
+        .select("audio_url")
+        .eq("id", str(recording_id))
+        .eq("event_id", str(event_id))
+        .execute()
+    )
+
+    if not recording_response.data or len(recording_response.data) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recording not found",
+        )
+
+    recording = recording_response.data[0]
+    audio_url = recording.get("audio_url")
+
+    if not audio_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio file not found",
+        )
+
+    try:
+        path_parts = audio_url.split("/audio-recordings/")
+        if len(path_parts) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid audio URL",
+            )
+        file_path = path_parts[1]
+
+        storage_client = create_storage_client()
+        audio_data = storage_client.storage.from_("audio-recordings").download(file_path)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load audio: {str(e)}",
+        )
+
+    from fastapi.responses import Response
+
+    return Response(
+        content=audio_data,
+        media_type="audio/webm",
+        headers={
+            "Content-Disposition": f'inline; filename="recording_{recording_id}.webm"',
+        },
+    )
+
+
 @router.post(
     "/{event_id}/recordings", response_model=AudioRecordingResponse, status_code=status.HTTP_201_CREATED
 )
@@ -424,12 +495,14 @@ async def complete_event(
             detail=f"Summary generation failed: {str(e)}",
         )
 
-    # Update event with summary and title
+    # Update event with summary, title, and time anchor date
     update_data = {
         "summary": summary_result.summary,
         "title": summary_result.title,
         "status": "complete",
     }
+    if summary_result.time_anchor_date:
+        update_data["time_anchor_date"] = summary_result.time_anchor_date.isoformat()
     serialize_update_data(update_data)
 
     updated_event = (

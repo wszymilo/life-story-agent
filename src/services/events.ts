@@ -84,6 +84,19 @@ export async function updateEvent(eventId: string, data: Partial<EventData>): Pr
   return response.json()
 }
 
+export async function streamAudio(eventId: string, recordingId: string): Promise<Blob> {
+  const authHeaders = await getAuthHeader()
+  const response = await fetch(`/api/events/${eventId}/recordings/${recordingId}/audio`, {
+    method: 'GET',
+    headers: authHeaders,
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('Failed to load audio')
+  }
+  return response.blob()
+}
+
 export async function uploadAudio(audioBlob: Blob, eventId: string): Promise<{ audio_url: string }> {
   const authHeaders = await getAuthHeader()
   const formData = new FormData()
