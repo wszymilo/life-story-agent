@@ -60,3 +60,7 @@ class AudioRecordingResponse(BaseModel):
     detail: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class EventWithRecordingsResponse(EventResponse):
+    recordings: list[AudioRecordingResponse] = []

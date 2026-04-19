@@ -8,14 +8,8 @@ import { RecordingScreen } from './components/RecordingScreen'
 import { InterviewScreen } from './components/InterviewScreen'
 import { SummaryScreen } from './components/SummaryScreen'
 import { DebugScreen } from './components/DebugScreen'
-
-function Timeline() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-2xl font-bold text-gray-800">Timeline (Coming Soon)</h1>
-    </div>
-  )
-}
+import { TimelineScreen } from './screens/TimelineScreen'
+import { EventDetailScreen } from './screens/EventDetailScreen'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -87,6 +81,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/record/:eventId"
+        element={
+          <ProtectedRoute>
+            <RecordingScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/interview/:eventId"
         element={
           <ProtectedRoute>
@@ -103,11 +105,19 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/event/:eventId"
+        element={
+          <ProtectedRoute>
+            <EventDetailScreen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/"
         element={
           <ProtectedRoute>
             <OnboardingCheck>
-              <Timeline />
+              <TimelineScreen />
             </OnboardingCheck>
           </ProtectedRoute>
         }

@@ -8,6 +8,7 @@ from api.schemas.event import (
     EventCreate,
     EventResponse,
     EventUpdate,
+    EventWithRecordingsResponse,
 )
 from api.utils import (
     get_event_for_user,
@@ -91,16 +92,16 @@ async def list_events(
     return response.data
 
 
-@router.get("/{event_id}", response_model=EventResponse)
-@router.get("/{event_id}/", response_model=EventResponse)
+@router.get("/{event_id}", response_model=EventWithRecordingsResponse)
+@router.get("/{event_id}/", response_model=EventWithRecordingsResponse)
 async def get_event(
     request: Request,
     event_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Get an event by ID."""
-    event_data, _ = await get_event_with_recordings(request, event_id)
-    return event_data
+    """Get an event by ID with recordings."""
+    event_data, recordings = await get_event_with_recordings(request, event_id)
+    return {**event_data, "recordings": recordings}
 
 
 @router.put("/{event_id}", response_model=EventResponse)
