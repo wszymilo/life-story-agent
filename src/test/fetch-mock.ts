@@ -8,7 +8,7 @@ export type MockResponseOptions = {
   blob?: () => Promise<Blob>
 }
 
-export function createFetchMock(options?: MockResponseOptions) : ReturnType<typeof fetch> {
+export function createFetchMock(options?: MockResponseOptions) {
   const {
     ok = true,
     status = 200,
@@ -23,7 +23,7 @@ export function createFetchMock(options?: MockResponseOptions) : ReturnType<type
     statusText,
     json: vi.fn(json),
     blob: vi.fn(blob),
-  }
+  } as unknown as Response
 }
 
 export function createErrorResponse(message: string, status = 400) {
@@ -44,8 +44,8 @@ export function setupFetchMock() {
 
 export function mockFetchResponse(response: MockResponseOptions | Error) {
   if (response instanceof Error) {
-    mockFetch.mockRejectedOnce(response)
+    mockFetch.mockRejectedValueOnce(response)
   } else {
-    mockFetch.mockResolvedOnce(response)
+    mockFetch.mockResolvedValueOnce(response)
   }
 }

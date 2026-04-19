@@ -84,7 +84,7 @@ describe('user service', () => {
         birth_date: '1950-01-01',
         country_of_origin: 'Poland',
         created_at: '',
-        relatives: [],
+        relatives: [] as unknown as [],
       }
 
       expect(isProfileComplete(profile)).toBe(true)
@@ -98,7 +98,7 @@ describe('user service', () => {
         birth_date: '1950-01-01',
         country_of_origin: 'Poland',
         created_at: '',
-        relatives: [],
+        relatives: [] as unknown as [],
       }
 
       expect(isProfileComplete(profile)).toBe(false)
@@ -112,7 +112,7 @@ describe('user service', () => {
         birth_date: null,
         country_of_origin: 'Poland',
         created_at: '',
-        relatives: [],
+        relatives: [] as unknown as [],
       }
 
       expect(isProfileComplete(profile)).toBe(false)
@@ -126,7 +126,7 @@ describe('user service', () => {
         birth_date: '1950-01-01',
         country_of_origin: null,
         created_at: '',
-        relatives: [],
+        relatives: [] as unknown as [],
       }
 
       expect(isProfileComplete(profile)).toBe(false)
