@@ -76,15 +76,6 @@ export async function getEventWithQuestions(eventId: string): Promise<EventWithQ
   return response.json()
 }
 
-export async function listEvents(): Promise<EventWithQuestions[]> {
-  const response = await fetchApi('/api/events')
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to list events')
-  }
-  return response.json()
-}
-
 export async function generateTTS(
   text: string,
   voice: string = 'nova',

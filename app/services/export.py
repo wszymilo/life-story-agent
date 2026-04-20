@@ -24,8 +24,6 @@ async def generate_event_export(
     Returns:
         ZIP file as bytes
     """
-    import zipfile
-
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         title = event_title or "Untitled Story"

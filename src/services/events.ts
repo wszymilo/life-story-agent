@@ -78,24 +78,6 @@ export async function streamAudio(eventId: string, recordingId: string): Promise
   return response.blob()
 }
 
-export async function uploadAudio(audioBlob: Blob, eventId: string): Promise<{ audio_url: string }> {
-  const authHeaders = await getAuthHeader()
-  const formData = new FormData()
-  formData.append('file', audioBlob, 'recording.webm')
-  formData.append('event_id', eventId)
-
-  const response = await fetch('/api/audio/upload', {
-    method: 'POST',
-    headers: authHeaders,
-    body: formData,
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    throw new Error('Failed to upload audio')
-  }
-  return response.json()
-}
-
 export async function listEvents(): Promise<EventData[]> {
   const response = await fetchApi('/api/events/')
   if (!response.ok) {
