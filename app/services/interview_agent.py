@@ -105,17 +105,23 @@ async def generate_follow_up_question(
 
 Your task is to generate ONE thoughtful follow-up question that:
 - Is specific to the transcript content (not generic)
-- Helps deepen the story (sensory details, emotions, people, context)
+- Helps deepen the story (sensory details, emotions, people, places, background context)
 - Is open-ended (not yes/no)
 - Shows genuine interest in the person's experience
+
+IMPORTANT: Generate diverse questions across different themes. Vary your question type:
+- If recent questions were about emotions, ask about SPECIFIC PLACES or PEOPLE mentioned
+- If recent questions were about places, ask about the CONTEXT or BACKGROUND
+- If recent questions were about people, ask about SENSORY details or specific EVENTS
+- Ask about details that would reveal new information, not just feelings
 
 The question should be in {display_language} and conversational in tone.
 
 Return a structured question with:
 1. question_text: The actual question to ask
-2. question_type: One of: sensory, emotional, people, context, detail
+2. question_type: One of: sensory, emotional, people, places, context, detail
 3. context: Why this question is relevant
-4. target_area: What aspect it explores: place, time, person, emotion, detail
+4. target_area: What aspect it explores: place, time, person, emotion, detail, background
 
 Avoid questions that have already been asked (see existing questions below).{existing_questions_text}"""
 

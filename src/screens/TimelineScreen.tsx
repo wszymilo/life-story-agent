@@ -2,16 +2,44 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
-import { listEvents, EventData } from '../services/events'
+import { listEvents, generateMetaStory, EventData } from '../services/events'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [generating, setGenerating] = useState(false)
 
   const handleEventClick = (event: EventData) => {
+    if (multiSelectMode) return
     navigate(`/event/${event.id}`)
+  }
+
+  const handleSelectToggle = (eventId: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(eventId)) {
+      newSelected.delete(eventId)
+    } else {
+      newSelected.add(eventId)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const handleCombineStories = async () => {
+    if (selectedIds.size < 2 || generating) return
+
+    setGenerating(true)
+    try {
+      const result = await generateMetaStory(Array.from(selectedIds))
+      navigate(`/event/${result.id}`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to generate meta-story')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const handleRetry = async () => {
@@ -70,12 +98,45 @@ export function TimelineScreen() {
     )
   }
 
+  const completedCount = events.filter(e => e.status === 'complete').length
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-          Your Life Story
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Your Life Story
+          </h1>
+          {completedCount >= 2 && !multiSelectMode && (
+            <button
+              onClick={() => setMultiSelectMode(true)}
+              className="text-sm px-3 py-1 text-blue-600 hover:text-blue-800"
+            >
+              Select
+            </button>
+          )}
+          {multiSelectMode && (
+            <button
+              onClick={() => {
+                setMultiSelectMode(false)
+                setSelectedIds(new Set())
+              }}
+              className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800"
+            >
+              Done
+            </button>
+          )}
+        </div>
+
+        {multiSelectMode && selectedIds.size >= 2 && (
+          <button
+            onClick={handleCombineStories}
+            disabled={generating}
+            className="w-full mb-4 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
+          >
+            {generating ? 'Combining stories...' : `Combine ${selectedIds.size} Stories`}
+          </button>
+        )}
 
         {events.length === 0 ? (
           <div className="text-center py-12">
@@ -96,6 +157,9 @@ export function TimelineScreen() {
                 key={event.id}
                 event={event}
                 onClick={handleEventClick}
+                multiSelectMode={multiSelectMode}
+                selected={selectedIds.has(event.id)}
+                onSelect={handleSelectToggle}
               />
             ))}
           </Timeline>

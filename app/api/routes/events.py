@@ -17,8 +17,11 @@ from api.utils import (
     require_data,
     serialize_update_data,
 )
+from config import get_settings
 from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from services.export import _sanitize_filename, generate_event_export
+from services.meta_story_generator import generate_meta_story
 from services.summary_generator import generate_summary as generate_event_summary
 from services.transcription import transcribe_audio_data, transcribe_audio_url
 
@@ -520,3 +523,138 @@ async def complete_event(
         "summary": summary_result.summary,
         "status": "complete",
     }
+
+
+@router.get("/{event_id}/export")
+async def export_event(
+    request: Request,
+    event_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Export event as a ZIP file containing markdown summary and audio files."""
+    supabase = await get_supabase_client()
+
+    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    if event.get("status") != "complete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only completed events can be exported",
+        )
+
+    _, recordings = await get_event_with_recordings(request, event_id)
+
+    recording_data = []
+    for rec in recordings:
+        recording_data.append({
+            "id": str(rec["id"]),
+            "event_id": str(event_id),
+            "audio_url": rec.get("audio_url"),
+            "transcript": rec.get("transcript"),
+            "recording_type": rec.get("recording_type"),
+            "created_at": rec.get("created_at"),
+        })
+
+    try:
+        zip_data = await generate_event_export(
+            event_id=str(event_id),
+            event_title=event.get("title"),
+            summary=event.get("summary"),
+            recordings=recording_data,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate export: {str(e)}",
+        )
+
+    from fastapi.responses import Response
+
+    title = event.get("title") or "untitled"
+    safe_title = _sanitize_filename(title)
+    filename = f"{safe_title}.zip"
+
+    return Response(
+        content=zip_data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.post("/meta-generate", status_code=status.HTTP_201_CREATED)
+async def generate_meta_story_endpoint(
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Generate a meta-story from multiple selected events."""
+    from pydantic import BaseModel
+
+    class MetaGenerateRequest(BaseModel):
+        event_ids: list[str]
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON body",
+        )
+
+    req = MetaGenerateRequest(**body)
+    settings = get_settings()
+
+    if len(req.event_ids) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least 2 events required",
+        )
+
+    if len(req.event_ids) > settings.max_meta_story_select:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {settings.max_meta_story_select} events allowed",
+        )
+
+    try:
+        result = await generate_meta_story(
+            user_id=str(current_user.id),
+            event_ids=req.event_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate meta-story: {str(e)}",
+        )
+
+    supabase = await get_supabase_client()
+
+    new_event = {
+        "user_id": str(current_user.id),
+        "title": result["title"],
+        "summary": result["summary"],
+        "status": "complete",
+        "time_anchor_date": result["time_anchor_date"],
+        "source_event_ids": result["source_event_ids"],
+    }
+
+    response = supabase.table("events").insert(new_event).execute()
+
+    if not response.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create event",
+        )
+
+    return {"id": response.data[0]["id"]}

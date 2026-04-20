@@ -66,6 +66,9 @@ CREATE TABLE follow_up_questions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Meta-story: track source events
+ALTER TABLE events ADD COLUMN IF NOT EXISTS source_event_ids UUID[] DEFAULT '{}';
+
 -- Indexes for performance
 CREATE INDEX idx_relatives_user_id ON relatives(user_id);
 CREATE INDEX idx_events_user_id ON events(user_id);

@@ -189,3 +189,42 @@ export async function completeEvent(eventId: string): Promise<CompletedEvent> {
   }
   return response.json()
 }
+
+export interface ExportResult {
+  blob: Blob
+  filename: string
+}
+
+export async function exportEvent(eventId: string): Promise<ExportResult> {
+  const authHeaders = await getAuthHeader()
+  const response = await fetch(`/api/events/${eventId}/export`, {
+    method: 'GET',
+    headers: authHeaders,
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('Failed to export event')
+  }
+  
+  // Extract filename from Content-Disposition header
+  // Format: attachment; filename="Motocyklowa_Odysseja_przez_Norwegie_{id}.zip"
+  const contentDisposition = response.headers.get('Content-Disposition') || ''
+  const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/)
+  const filename = filenameMatch ? filenameMatch[1] : `${eventId}.zip`
+  
+  const blob = await response.blob()
+  return { blob, filename }
+}
+
+export async function generateMetaStory(eventIds: string[]): Promise<{ id: string }> {
+  const response = await fetchApi('/api/events/meta-generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_ids: eventIds }),
+  })
+  if (!response.ok) {
+    const result = await response.json()
+    throw new Error(result.detail || 'Failed to generate meta-story')
+  }
+  return response.json()
+}
