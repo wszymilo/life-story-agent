@@ -1,5 +1,6 @@
 import io
 import zipfile
+from typing import Any
 
 import structlog
 from db.client import create_storage_client
@@ -11,7 +12,7 @@ async def generate_event_export(
     event_id: str,
     event_title: str | None,
     summary: str | None,
-    recordings: list[dict],
+    recordings: list[dict[str, Any]],
 ) -> bytes:
     """Generate a ZIP file containing event data for export.
 
@@ -110,7 +111,7 @@ async def _add_recording_to_zip(
         )
 
 
-def _generate_markdown(title: str, summary: str, recordings: list[dict]) -> str:
+def _generate_markdown(title: str, summary: str, recordings: list[dict[str, Any]]) -> str:
     """Generate markdown content for the export.
 
     Args:

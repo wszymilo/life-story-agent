@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 
-def require_data(response, detail: str = "Resource not found"):
+def require_data(response: Any, detail: str = "Resource not found") -> Any:
     """Extract first item from Supabase response data.
 
     Raises 404 if data is missing, empty, or invalid.
@@ -49,7 +49,7 @@ def serialize_update_data(update_data: dict[str, Any]) -> dict[str, Any]:
     return update_data
 
 
-def get_transcripts_from_recordings(recordings: list[dict]) -> list[str]:
+def get_transcripts_from_recordings(recordings: list[dict[str, Any]]) -> list[str | None]:
     """Extract non-null transcripts from a list of recording dicts.
 
     Args:
@@ -61,7 +61,7 @@ def get_transcripts_from_recordings(recordings: list[dict]) -> list[str]:
     return [r.get("transcript") for r in recordings if r.get("transcript")]
 
 
-def validate_recordings_exist(recordings_response, error_detail: str = "No recordings found"):
+def validate_recordings_exist(recordings_response: Any, error_detail: str = "No recordings found") -> None:
     """Validate that recordings exist for an event.
 
     Raises HTTPException 400 if no recordings.
@@ -81,7 +81,7 @@ def validate_recordings_exist(recordings_response, error_detail: str = "No recor
 
 
 def get_next_sequence_order(
-    supabase_client,
+    supabase_client: Any,
     table_name: str,
     event_id: str,
     id_field: str = "event_id",
@@ -119,7 +119,7 @@ def get_next_sequence_order(
 
 
 async def get_event_for_user(
-    supabase_client,
+    supabase_client: Any,
     event_id: str,
     user_id: str,
 ) -> dict[str, Any]:
@@ -147,10 +147,10 @@ async def get_event_for_user(
         .execute()
     )
 
-    return require_data(event_response, "Event not found")
+    return require_data(event_response, "Event not found")  # type: ignore[return-value]
 
 
-async def get_user_language(supabase_client, user_id: str) -> str:
+async def get_user_language(supabase_client: Any, user_id: str) -> str:
     """Get user's preferred language, defaulting to Polish.
 
     Args:

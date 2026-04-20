@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from api.schemas.summary import SummaryWithTitle
 from config import get_settings
@@ -10,7 +10,7 @@ MAX_RETRIES = 2
 
 async def generate_summary(
     transcripts: list[str],
-    questions_and_answers: list[dict],
+    questions_and_answers: list[dict[str, Any]],
     language: str = "pl"
 ) -> SummaryWithTitle:
     """Generate a grounded summary using Generator-Reviewer pattern.
