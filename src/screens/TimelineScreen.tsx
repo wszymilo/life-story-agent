@@ -3,15 +3,40 @@ import { useNavigate } from 'react-router-dom'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { listEvents, generateMetaStory, EventData } from '../services/events'
+import { useAuth } from '../context/AuthContext'
+import { updatePreferredLanguage } from '../services/user'
+
+const LANGUAGE_OPTIONS = [
+  { code: 'pl', label: 'PL' },
+  { code: 'en', label: 'EN' },
+  { code: 'de', label: 'DE' },
+  { code: 'fr', label: 'FR' },
+  { code: 'es', label: 'ES' },
+]
 
 export function TimelineScreen() {
   const navigate = useNavigate()
+  const { profile, refreshProfile } = useAuth()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
+  const [changingLanguage, setChangingLanguage] = useState(false)
+
+  const handleLanguageChange = async (lang: string) => {
+    if (changingLanguage || !profile) return
+    setChangingLanguage(true)
+    try {
+      await updatePreferredLanguage(lang)
+      await refreshProfile()
+    } catch (err) {
+      console.error('Failed to update language:', err)
+    } finally {
+      setChangingLanguage(false)
+    }
+  }
 
   const handleEventClick = (event: EventData) => {
     if (multiSelectMode) return
@@ -100,13 +125,24 @@ export function TimelineScreen() {
 
   const completedCount = events.filter(e => e.status === 'complete').length
 
+  const currentLanguage = profile?.preferred_language || 'pl'
+  
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Your Life Story
-          </h1>
+          <select
+            value={currentLanguage}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            disabled={changingLanguage || !profile}
+            className="text-sm px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 disabled:opacity-50"
+          >
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <option key={opt.code} value={opt.code}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
           {completedCount >= 2 && !multiSelectMode && (
             <button
               onClick={() => setMultiSelectMode(true)}

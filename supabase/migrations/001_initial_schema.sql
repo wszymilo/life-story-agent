@@ -12,6 +12,7 @@ CREATE TABLE users (
     name TEXT,
     birth_date DATE,
     country_of_origin TEXT,
+    preferred_language TEXT DEFAULT 'pl',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -66,8 +67,7 @@ CREATE TABLE follow_up_questions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Meta-story: track source events
-ALTER TABLE events ADD COLUMN IF NOT EXISTS source_event_ids UUID[] DEFAULT '{}';
+
 
 -- Indexes for performance
 CREATE INDEX idx_relatives_user_id ON relatives(user_id);

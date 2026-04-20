@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from pydantic import BaseModel, Field
 from api.deps import CurrentUser, get_current_user
 from api.schemas.user import (
     RelativeCreate,
@@ -11,6 +12,11 @@ from api.schemas.user import (
 from api.utils import require_data, serialize_update_data
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+
+class LanguageUpdate(BaseModel):
+    preferred_language: str = Field(min_length=2, max_length=2)
+
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -38,6 +44,7 @@ async def get_user_with_relatives(request: Request, user_id: uuid.UUID) -> UserR
         name=user_data.get("name"),
         birth_date=user_data.get("birth_date"),
         country_of_origin=user_data.get("country_of_origin"),
+        preferred_language=user_data.get("preferred_language", "pl"),
         created_at=user_data["created_at"],
         relatives=relatives,
     )
@@ -114,3 +121,23 @@ async def delete_relative(
     supabase.table("relatives").delete().eq("id", str(relative_id)).execute()
 
     return {"success": True}
+
+
+@router.put("/me/language", response_model=UserResponse)
+async def update_language(
+    language_update: LanguageUpdate,
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Update preferred language for AI-generated content."""
+    supabase = await get_supabase_client()
+
+    response = (
+        supabase.table("users")
+        .update({"preferred_language": language_update.preferred_language})
+        .eq("id", str(current_user.id))
+        .execute()
+    )
+    require_data(response, "User not found")
+
+    return await get_user_with_relatives(request, current_user.id)

@@ -36,6 +36,7 @@ export interface UserProfile {
   name: string | null
   birth_date: string | null
   country_of_origin: string | null
+  preferred_language?: string
   created_at: string
   relatives: []
 }
@@ -71,6 +72,22 @@ export async function updateUserProfile(data: UserUpdate): Promise<UserProfile> 
   }
   const result = await response.json()
   log('debug', 'Profile updated for user:', result.id)
+  return result
+}
+
+export async function updatePreferredLanguage(language: string): Promise<UserProfile> {
+  log('debug', 'Updating preferred language:', language)
+  const response = await fetchApi('/api/users/me/language', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preferred_language: language }),
+  })
+  if (!response.ok) {
+    log('error', 'Language update failed:', response.status, response.statusText)
+    throw new Error('Failed to update preferred language')
+  }
+  const result = await response.json()
+  log('debug', 'Language updated to:', language)
   return result
 }
 

@@ -13,6 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
 from utils.date_parser import parse_date
 
+
+async def get_user_language(supabase, user_id: str) -> str:
+    """Get user's preferred language, default to Polish."""
+    user_response = supabase.table("users").select("preferred_language").eq("id", user_id).execute()
+    return user_response.data[0].get("preferred_language", "pl") if user_response.data else "pl"
+
+
 router = APIRouter(prefix="/events", tags=["interview"])
 
 
@@ -44,8 +51,11 @@ async def analyze_event_transcript(
 
     combined_transcript = "\n\n".join(transcripts)
 
+    # Get user's preferred language
+    user_language = await get_user_language(supabase, str(current_user.id))
+
     try:
-        analysis = await analyze_transcript(combined_transcript)
+        analysis = await analyze_transcript(combined_transcript, language=user_language)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,6 +111,9 @@ async def generate_follow_up(
             detail="No transcripts found for this event",
         )
 
+    # Get user's preferred language
+    user_language = await get_user_language(supabase, str(current_user.id))
+
     combined_transcript = "\n\n".join(transcripts)
 
     existing_questions_response = (
@@ -118,7 +131,9 @@ async def generate_follow_up(
 
     try:
         question = await generate_follow_up_question(
-            combined_transcript, existing_questions
+            transcript=combined_transcript,
+            existing_questions=existing_questions,
+            language=user_language,
         )
     except Exception as e:
         raise HTTPException(

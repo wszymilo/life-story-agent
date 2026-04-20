@@ -305,11 +305,17 @@ async def add_recording(
     # Use service key client to download audio directly for transcription (bucket is private)
     service_supabase = create_storage_client(timeout=120)
 
+    # Get user's preferred language for transcription
+    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
+    user_language = "pl"
+    if user_response.data and user_response.data[0].get("preferred_language"):
+        user_language = user_response.data[0]["preferred_language"]
+
     transcript = None
     transcription_error = None
     try:
         audio_data = service_supabase.storage.from_("audio-recordings").download(file_path)
-        transcript = await transcribe_audio_data(audio_data, language="pl")
+        transcript = await transcribe_audio_data(audio_data, language=user_language)
     except Exception as e:
         transcript = None
         transcription_error = str(e)
@@ -404,8 +410,14 @@ async def retry_transcribe(
             detail="Recording has no audio file",
         )
 
+    # Get user's preferred language for transcription
+    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
+    user_language = "pl"
+    if user_response.data and user_response.data[0].get("preferred_language"):
+        user_language = user_response.data[0]["preferred_language"]
+
     try:
-        transcript = await transcribe_audio_url(recording["audio_url"], language="pl")
+        transcript = await transcribe_audio_url(recording["audio_url"], language=user_language)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -486,11 +498,17 @@ async def complete_event(
                 })
 
     # Generate summary
+    # Get user's preferred language
+    user_language = "pl"
+    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
+    if user_response.data and user_response.data[0].get("preferred_language"):
+        user_language = user_response.data[0]["preferred_language"]
+
     try:
         summary_result = await generate_event_summary(
             transcripts=transcripts,
             questions_and_answers=questions_and_answers,
-            language="pl"
+            language=user_language
         )
     except Exception as e:
         raise HTTPException(
@@ -622,10 +640,19 @@ async def generate_meta_story_endpoint(
             detail=f"Maximum {settings.max_meta_story_select} events allowed",
         )
 
+    supabase = await get_supabase_client()
+
+    # Get user's preferred language
+    user_language = "pl"
+    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
+    if user_response.data and user_response.data[0].get("preferred_language"):
+        user_language = user_response.data[0]["preferred_language"]
+
     try:
         result = await generate_meta_story(
             user_id=str(current_user.id),
             event_ids=req.event_ids,
+            language=user_language,
         )
     except ValueError as e:
         raise HTTPException(
