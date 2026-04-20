@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { fetchApi } from './api'
 
 const DEBUG = import.meta.env.DEV
 
@@ -6,28 +6,6 @@ function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: unknown[]) {
   if (DEBUG) {
     console[level]('[user service]', ...args)
   }
-}
-
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-    log('debug', 'Auth: token present')
-  } else {
-    log('debug', 'Auth: no token')
-  }
-  return headers
-}
-
-async function fetchApi(url: string, options: RequestInit = {}): Promise<Response> {
-  const authHeaders = await getAuthHeader()
-  return fetch(url, {
-    ...options,
-    headers: { ...authHeaders, ...options.headers },
-    credentials: 'include',
-  })
 }
 
 export interface UserProfile {

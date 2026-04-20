@@ -1,29 +1,4 @@
-import { supabase } from '../lib/supabase'
-
-async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return headers
-}
-
-export async function fetchApi(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const headers = await getAuthHeader()
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  })
-  return response
-}
+import { fetchApi } from './api'
 
 export interface FollowUpQuestion {
   id: string

@@ -5,14 +5,7 @@ import { EventCard } from '../components/EventCard'
 import { listEvents, generateMetaStory, EventData } from '../services/events'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
-
-const LANGUAGE_OPTIONS = [
-  { code: 'pl', label: 'PL' },
-  { code: 'en', label: 'EN' },
-  { code: 'de', label: 'DE' },
-  { code: 'fr', label: 'FR' },
-  { code: 'es', label: 'ES' },
-]
+import { LANGUAGE_OPTIONS } from '../services/constants'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
