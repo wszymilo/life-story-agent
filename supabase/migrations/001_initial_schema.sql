@@ -12,6 +12,7 @@ CREATE TABLE users (
     name TEXT,
     birth_date DATE,
     country_of_origin TEXT,
+    preferred_language TEXT DEFAULT 'pl',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -65,6 +66,8 @@ CREATE TABLE follow_up_questions (
     audio_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
 
 -- Indexes for performance
 CREATE INDEX idx_relatives_user_id ON relatives(user_id);

@@ -31,5 +31,6 @@ build/
 .vercel
 *.tsbuildinfo
 supabase/.temp/
+certs/
 
 /plan.md

@@ -1,9 +1,10 @@
 import structlog
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
+from api.deps import CurrentUser, get_current_user
+from api.routes import audio, events, interview, tts, users
 from config import get_settings
 from db.client import get_supabase_client
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -51,3 +52,16 @@ async def db_check():
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+@app.get("/auth/me")
+async def get_me(current_user: CurrentUser = Depends(get_current_user)):
+    """Get current authenticated user."""
+    return {"id": str(current_user.id), "email": current_user.email}
+
+
+app.include_router(users.router, prefix="/api")
+app.include_router(events.router, prefix="/api")
+app.include_router(audio.router, prefix="/api")
+app.include_router(interview.router, prefix="/api")
+app.include_router(tts.router, prefix="/api")

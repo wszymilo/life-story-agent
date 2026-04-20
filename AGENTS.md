@@ -33,7 +33,37 @@
 ## Dev Commands
 - Backend: `cd app && uv run uvicorn main:app --reload`
 - Frontend: `npm run dev` (Vite)
+- Backend tests: `cd app && uv run pytest`
+- Frontend tests: `npm test` (vitest) or `npm run test:run`
 - Lint/Typecheck: Run per-stack (check package.json / pyproject.toml)
+
+## Running Locally for Manual Testing
+
+### Start Backend (Terminal 1)
+```bash
+cd app && uv run uvicorn main:app --reload
+```
+- Runs on: http://localhost:8000
+- Health check: http://localhost:8000/health
+
+### Start Frontend (Terminal 2)
+```bash
+npm run dev
+```
+- Runs on: http://localhost:5173
+- Auto-proxies `/api/*` → http://localhost:8000
+
+### Testing Flow
+1. Open http://localhost:5173
+2. Enter email on login screen → "Send Magic Link"
+3. Check email for magic link → click it
+4. Redirects to Timeline (protected route)
+
+## Testing Requirements
+- ALL new features must include tests
+- Backend: pytest for API routes and services
+- Frontend: Vitest + React Testing Library for components/hooks
+- Run tests before committing
 
 ## Git Operations - IMPORTANT
 - **DO NOT automatically commit and push changes**
