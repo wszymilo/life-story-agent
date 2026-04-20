@@ -5,6 +5,7 @@ from api.utils import (
     get_event_for_user,
     get_next_sequence_order,
     get_transcripts_from_recordings,
+    get_user_language,
     require_data,
     validate_recordings_exist,
 )
@@ -12,12 +13,6 @@ from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
 from utils.date_parser import parse_date
-
-
-async def get_user_language(supabase, user_id: str) -> str:
-    """Get user's preferred language, default to Polish."""
-    user_response = supabase.table("users").select("preferred_language").eq("id", user_id).execute()
-    return user_response.data[0].get("preferred_language", "pl") if user_response.data else "pl"
 
 
 router = APIRouter(prefix="/events", tags=["interview"])

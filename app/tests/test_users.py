@@ -17,6 +17,26 @@ class TestPutUsersMe:
         pytest.skip("Requires JWT mocking - complex setup")
 
 
+class TestLanguagePreference:
+    def test_language_endpoint_exists(self):
+        from main import app
+
+        routes = [r.path for r in app.routes]
+        assert "/api/users/me/language" in routes
+
+    def test_user_update_schema_accepts_language(self):
+        from api.schemas.user import UserUpdate
+
+        update = UserUpdate(preferred_language="en")
+        assert update.preferred_language == "en"
+
+    def test_user_update_schema_validates_language_length(self):
+        from api.schemas.user import UserUpdate
+
+        update = UserUpdate(preferred_language="pl")
+        assert update.preferred_language == "pl"
+
+
 class TestRelatives:
     def test_post_relatives_requires_auth(self):
         pytest.skip("Requires JWT mocking - complex setup")

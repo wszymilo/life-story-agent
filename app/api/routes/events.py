@@ -14,6 +14,7 @@ from api.utils import (
     get_event_for_user,
     get_next_sequence_order,
     get_transcripts_from_recordings,
+    get_user_language,
     require_data,
     serialize_update_data,
 )
@@ -306,10 +307,7 @@ async def add_recording(
     service_supabase = create_storage_client(timeout=120)
 
     # Get user's preferred language for transcription
-    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
-    user_language = "pl"
-    if user_response.data and user_response.data[0].get("preferred_language"):
-        user_language = user_response.data[0]["preferred_language"]
+    user_language = await get_user_language(supabase, str(current_user.id))
 
     transcript = None
     transcription_error = None
@@ -411,10 +409,7 @@ async def retry_transcribe(
         )
 
     # Get user's preferred language for transcription
-    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
-    user_language = "pl"
-    if user_response.data and user_response.data[0].get("preferred_language"):
-        user_language = user_response.data[0]["preferred_language"]
+    user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
         transcript = await transcribe_audio_url(recording["audio_url"], language=user_language)
@@ -499,10 +494,7 @@ async def complete_event(
 
     # Generate summary
     # Get user's preferred language
-    user_language = "pl"
-    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
-    if user_response.data and user_response.data[0].get("preferred_language"):
-        user_language = user_response.data[0]["preferred_language"]
+    user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
         summary_result = await generate_event_summary(
@@ -643,10 +635,7 @@ async def generate_meta_story_endpoint(
     supabase = await get_supabase_client()
 
     # Get user's preferred language
-    user_language = "pl"
-    user_response = supabase.table("users").select("preferred_language").eq("id", str(current_user.id)).execute()
-    if user_response.data and user_response.data[0].get("preferred_language"):
-        user_language = user_response.data[0]["preferred_language"]
+    user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
         result = await generate_meta_story(

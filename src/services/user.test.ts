@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getUserProfile, updateUserProfile, isProfileComplete } from './user'
+import { getUserProfile, updateUserProfile, updatePreferredLanguage, isProfileComplete } from './user'
 import { createFetchMock, createErrorResponse, mockFetch } from '../test/fetch-mock'
 
 vi.stubGlobal('fetch', mockFetch)
@@ -28,6 +28,7 @@ describe('user service', () => {
         name: 'John Doe',
         birth_date: '1950-01-01',
         country_of_origin: 'Poland',
+        preferred_language: 'pl',
         created_at: new Date().toISOString(),
         relatives: [],
       }
@@ -72,6 +73,39 @@ describe('user service', () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Invalid data', 422))
 
       await expect(updateUserProfile({ name: '' })).rejects.toThrow()
+    })
+  })
+
+  describe('updatePreferredLanguage', () => {
+    it('updates language preference successfully', async () => {
+      const mockProfile = {
+        id: 'user-1',
+        email: 'test@example.com',
+        name: 'John',
+        birth_date: '1950-01-01',
+        country_of_origin: 'Poland',
+        preferred_language: 'en',
+        created_at: new Date().toISOString(),
+        relatives: [],
+      }
+      mockFetch.mockResolvedValueOnce(createFetchMock({ json: () => Promise.resolve(mockProfile) }))
+
+      const result = await updatePreferredLanguage('en')
+
+      expect(result.preferred_language).toBe('en')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/users/me/language',
+        expect.objectContaining({ 
+          method: 'PUT',
+          body: JSON.stringify({ preferred_language: 'en' })
+        })
+      )
+    })
+
+    it('throws on error', async () => {
+      mockFetch.mockResolvedValueOnce(createErrorResponse('Failed', 500))
+
+      await expect(updatePreferredLanguage('en')).rejects.toThrow()
     })
   })
 

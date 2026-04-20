@@ -148,3 +148,24 @@ async def get_event_for_user(
     )
 
     return require_data(event_response, "Event not found")
+
+
+async def get_user_language(supabase_client, user_id: str) -> str:
+    """Get user's preferred language, defaulting to Polish.
+
+    Args:
+        supabase_client: Supabase client instance
+        user_id: UUID of the user
+
+    Returns:
+        Language code (e.g., 'pl', 'en')
+    """
+    user_response = (
+        supabase_client.table("users")
+        .select("preferred_language")
+        .eq("id", user_id)
+        .execute()
+    )
+    if user_response.data and user_response.data[0].get("preferred_language"):
+        return user_response.data[0]["preferred_language"]
+    return "pl"
