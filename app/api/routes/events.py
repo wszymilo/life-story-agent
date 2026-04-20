@@ -21,6 +21,7 @@ from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from services.summary_generator import generate_summary as generate_event_summary
 from services.transcription import transcribe_audio_data, transcribe_audio_url
+from services.export import generate_event_export
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -520,3 +521,65 @@ async def complete_event(
         "summary": summary_result.summary,
         "status": "complete",
     }
+
+
+@router.get("/{event_id}/export")
+async def export_event(
+    request: Request,
+    event_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Export event as a ZIP file containing markdown summary and audio files."""
+    supabase = await get_supabase_client()
+
+    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    if event.get("status") != "complete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only completed events can be exported",
+        )
+
+    _, recordings = await get_event_with_recordings(request, event_id)
+
+    recording_data = []
+    for rec in recordings:
+        recording_data.append({
+            "id": str(rec["id"]),
+            "event_id": str(event_id),
+            "audio_url": rec.get("audio_url"),
+            "transcript": rec.get("transcript"),
+            "recording_type": rec.get("recording_type"),
+            "created_at": rec.get("created_at"),
+        })
+
+    try:
+        zip_data = await generate_event_export(
+            event_id=str(event_id),
+            event_title=event.get("title"),
+            summary=event.get("summary"),
+            recordings=recording_data,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate export: {str(e)}",
+        )
+
+    from fastapi.responses import Response
+
+    title = event.get("title") or "untitled"
+    filename = f"{title.replace(' ', '_')}_{event_id}.zip"
+
+    return Response(
+        content=zip_data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )

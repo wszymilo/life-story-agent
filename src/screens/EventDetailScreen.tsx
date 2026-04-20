@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEvent, deleteEvent, streamAudio, EventData, AudioRecording } from '../services/events'
+import { getEvent, deleteEvent, exportEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -9,6 +9,7 @@ export function EventDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [deleting, setDeleting] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -46,6 +47,27 @@ export function EventDetailScreen() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete')
       setDeleting(false)
+    }
+  }
+
+  const handleExport = async () => {
+    if (!event?.id) return
+
+    setExporting(true)
+    try {
+      const blob = await exportEvent(event.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${event.title || 'story'}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to export')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -149,6 +171,15 @@ export function EventDetailScreen() {
           >
             {deleting ? 'Deleting...' : 'Delete'}
           </button>
+          {!isDraft && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="ml-3 text-blue-600 text-sm hover:text-blue-800 disabled:opacity-50"
+            >
+              {exporting ? 'Exporting...' : 'Export'}
+            </button>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 mb-4">

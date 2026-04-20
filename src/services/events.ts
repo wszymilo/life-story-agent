@@ -189,3 +189,16 @@ export async function completeEvent(eventId: string): Promise<CompletedEvent> {
   }
   return response.json()
 }
+
+export async function exportEvent(eventId: string): Promise<Blob> {
+  const authHeaders = await getAuthHeader()
+  const response = await fetch(`/api/events/${eventId}/export`, {
+    method: 'GET',
+    headers: authHeaders,
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('Failed to export event')
+  }
+  return response.blob()
+}
