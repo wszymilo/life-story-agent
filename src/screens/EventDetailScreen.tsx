@@ -55,11 +55,11 @@ export function EventDetailScreen() {
 
     setExporting(true)
     try {
-      const blob = await exportEvent(event.id)
+      const { blob, filename } = await exportEvent(event.id)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${event.title || 'story'}.zip`
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

@@ -158,16 +158,23 @@ def _generate_markdown(title: str, summary: str, recordings: list[dict]) -> str:
 
 
 def _sanitize_filename(name: str) -> str:
-    """Sanitize filename by removing or replacing invalid characters.
+    """Sanitize filename by transliterating Unicode to ASCII and removing invalid characters.
 
     Args:
         name: Original filename
 
     Returns:
-        Sanitized filename
+        Sanitized filename (ASCII-only)
     """
     import re
+    from unidecode import unidecode
 
+    # First transliterate Unicode characters to ASCII equivalents
+    # e.g., "Motocyklowa Odysseja przez Norwegię" → "Motocyklowa Odysseja przez Norwegie"
+    # e.g., "Zażółć gęślą jaźń" → "Zazolc gesla jazn"
+    name = unidecode(name)
+
+    # Then remove invalid filename characters for Windows/Mac/Linux
     name = re.sub(r'[<>:"/\\|?*]', "_", name)
     name = name.strip(". ")
     if not name:

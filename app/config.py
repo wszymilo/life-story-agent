@@ -18,6 +18,7 @@ class Settings:
     environment: str = "development"
     log_level: str = "info"
     cors_origins: list[str] = ["http://localhost:5173"]
+    max_meta_story_select: int = 10
 
     def __init__(self):
         self.supabase_url = os.getenv("SUPABASE_URL", "")
@@ -31,6 +32,7 @@ class Settings:
         self.log_level = os.getenv("LOG_LEVEL", "info")
         cors = os.getenv("CORS_ORIGINS", "http://localhost:5173")
         self.cors_origins = [s.strip() for s in cors.split(",")]
+        self.max_meta_story_select = int(os.getenv("MAX_META_STORY_SELECT", "10"))
 
 
 @lru_cache
