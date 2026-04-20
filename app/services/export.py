@@ -1,10 +1,7 @@
 import io
-import uuid
 import zipfile
-from typing import BinaryIO
 
 import structlog
-
 from db.client import create_storage_client
 
 logger = structlog.get_logger()
@@ -151,7 +148,7 @@ def _generate_markdown(title: str, summary: str, recordings: list[dict]) -> str:
         "",
         "---",
         "",
-        f"*Exported from Life Story Agent*",
+        "*Exported from Life Story Agent*",
     ])
 
     return "\n".join(md_lines)
@@ -167,6 +164,7 @@ def _sanitize_filename(name: str) -> str:
         Sanitized filename (ASCII-only)
     """
     import re
+
     from unidecode import unidecode
 
     # First transliterate Unicode characters to ASCII equivalents
@@ -175,8 +173,11 @@ def _sanitize_filename(name: str) -> str:
     name = unidecode(name)
 
     # Then remove invalid filename characters for Windows/Mac/Linux
-    name = re.sub(r'[<>:"/\\|?*]', "_", name)
-    name = name.strip(". ")
+    # Also replace commas, periods, and spaces with underscores for cleaner filenames
+    name = re.sub(r'[<>:"/\\|?*,]', "_", name)
+    name = re.sub(r'\s+', "_", name)
+    name = name.strip(".")
+    name = name.strip("_")  # strip underscores
     if not name:
         name = "untitled"
     return name[:100]

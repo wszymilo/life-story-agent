@@ -3,9 +3,9 @@
 Generates a combined story from multiple selected events.
 """
 
-import structlog
 from datetime import date
 
+import structlog
 from api.utils import get_event_for_user
 from config import get_settings
 from db.client import get_supabase_client
@@ -51,17 +51,32 @@ async def generate_meta_story(
             raise ValueError(f"Event {event_id} is not complete")
         events.append(event)
 
-    events.sort(
-        key=lambda e: e.get("time_anchor_date") or e.get("created_at", "")
-    )
+    from datetime import datetime
+
+    def sort_key(e):
+        date_str = e.get("time_anchor_date")
+        if date_str:
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                pass
+        created = e.get("created_at", "")
+        if created:
+            try:
+                return datetime.strptime(created[:10], "%Y-%m-%d")
+            except ValueError:
+                pass
+        return datetime.min
+
+    events.sort(key=sort_key)
 
     content_parts = []
     for i, event in enumerate(events):
         title = event.get("title") or f"Story {i+1}"
         time_info = event.get("time_anchor_date") or event.get("created_at", "")[:10]
-        
+
         content_parts.append(f"--- Story {i+1}: {title} ({time_info}) ---")
-        
+
         if event.get("summary"):
             content_parts.append(f"Summary: {event['summary']}")
 
@@ -72,18 +87,18 @@ async def generate_meta_story(
             .order("sequence_order")
             .execute()
         )
-        
+
         transcripts = []
         for rec in recordings.data or []:
             if rec.get("transcript"):
                 rec_type = rec.get("recording_type", "unknown")
                 transcripts.append(f"[{rec_type}]: {rec['transcript']}")
-        
+
         if transcripts:
             content_parts.append("Transcripts:")
             for t in transcripts:
                 content_parts.append(t)
-        
+
         content_parts.append("")
 
     full_content = "\n\n".join(content_parts)

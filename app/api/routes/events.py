@@ -17,13 +17,13 @@ from api.utils import (
     require_data,
     serialize_update_data,
 )
+from config import get_settings
 from db.client import create_storage_client, get_supabase_client
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from services.export import _sanitize_filename, generate_event_export
+from services.meta_story_generator import generate_meta_story
 from services.summary_generator import generate_summary as generate_event_summary
 from services.transcription import transcribe_audio_data, transcribe_audio_url
-from services.export import generate_event_export, _sanitize_filename
-from services.meta_story_generator import generate_meta_story
-from config import get_settings
 
 router = APIRouter(prefix="/events", tags=["events"])
 

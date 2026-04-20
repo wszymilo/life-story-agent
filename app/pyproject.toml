@@ -38,3 +38,6 @@ packages = ["."]
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff.lint]
+ignore = ["W291"]  # Trailing whitespace (unavoidable in multi-line f-strings)

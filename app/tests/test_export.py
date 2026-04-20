@@ -1,7 +1,7 @@
 """Tests for export service."""
 
 import pytest
-from services.export import _sanitize_filename, _generate_markdown
+from services.export import _generate_markdown, _sanitize_filename
 
 
 class TestSanitizeFilename:
@@ -19,13 +19,13 @@ class TestSanitizeFilename:
         assert "?" not in result
         assert "*" not in result
 
-    def test_sanitize_trims_whitespace(self):
-        result = _sanitize_filename("  test file  ")
-        assert result == "test file"
+    def test_sanitize_replaces_spaces(self):
+        result = _sanitize_filename("test file name")
+        assert result == "test_file_name"
 
     def test_sanitize_trims_dots(self):
         result = _sanitize_filename(".test file.")
-        assert result == "test file"
+        assert result == "test_file"
 
     def test_sanitize_empty_returns_untitled(self):
         result = _sanitize_filename("   ")
@@ -88,8 +88,8 @@ class TestGenerateEventExport:
             recordings=recordings,
         )
 
-        import zipfile
         import io
+        import zipfile
 
         assert result is not None
         buffer = io.BytesIO(result)
@@ -106,8 +106,8 @@ class TestGenerateEventExport:
             recordings=[],
         )
 
-        import zipfile
         import io
+        import zipfile
 
         assert result is not None
         buffer = io.BytesIO(result)
@@ -124,8 +124,8 @@ class TestGenerateEventExport:
             recordings=[],
         )
 
-        import zipfile
         import io
+        import zipfile
 
         assert result is not None
         buffer = io.BytesIO(result)

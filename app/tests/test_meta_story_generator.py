@@ -1,7 +1,8 @@
 """Tests for meta story generator service."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 
 class TestMetaStoryGenerator:
@@ -32,7 +33,6 @@ class TestMetaStoryGenerator:
     @pytest.mark.asyncio
     async def test_sorts_events_by_date(self):
         """Test that events are sorted chronologically."""
-        from services.meta_story_generator import generate_meta_story
 
         mock_events = [
             {"id": "newer", "created_at": "2024-02-01", "time_anchor_date": None},

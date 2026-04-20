@@ -190,7 +190,12 @@ export async function completeEvent(eventId: string): Promise<CompletedEvent> {
   return response.json()
 }
 
-export async function exportEvent(eventId: string): Promise<Blob> {
+export interface ExportResult {
+  blob: Blob
+  filename: string
+}
+
+export async function exportEvent(eventId: string): Promise<ExportResult> {
   const authHeaders = await getAuthHeader()
   const response = await fetch(`/api/events/${eventId}/export`, {
     method: 'GET',
