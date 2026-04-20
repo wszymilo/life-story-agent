@@ -110,15 +110,16 @@ cohesive, flowing narrative that combines multiple short stories into one
 comprehensive life story.
 
 Guidelines:
-- Weave the stories into a single narrative with natural transitions
-- Maintain the chronological order of events
+- CRITICAL: The stories are presented in CHRONOLOGICAL ORDER (oldest to newest).
+  You MUST maintain this exact order in your final narrative.
+- Each story has a date provided - use these dates to anchor the timeline naturally
+- Weave the stories into ONE continuous narrative with smooth transitions between time periods
+- Use temporal markers like "In [year]", "Later", "After that", "Years later", etc.
 - Use first-person narrative voice
 - Preserve key details, emotions, and memories from each source
-- Create a compelling, readable story that flows naturally
 - Output in {language} language
 
-The output should be a single cohesive story, not a list or collection 
-of separate summaries."""
+The output should be a single cohesive story, NOT separate summaries of each story."""
 
     response = await client.chat.completions.create(
         model=settings.openai_model,
