@@ -3,15 +3,18 @@
 Generates a combined story from multiple selected events.
 """
 
-from datetime import date
+import time
+from datetime import date, datetime
 
-import structlog
+from api.langfuse_config import log_generation
+from api.logging_config import get_logger
 from api.utils import get_event_for_user
 from config import get_settings
 from db.client import get_supabase_client
 from openai import AsyncOpenAI
 
-logger = structlog.get_logger()
+settings = get_settings()
+logger = get_logger()
 
 
 async def generate_meta_story(
@@ -29,8 +32,6 @@ async def generate_meta_story(
     Returns:
         Dict with title, summary, time_anchor_date, source_event_ids
     """
-    settings = get_settings()
-
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
@@ -40,18 +41,28 @@ async def generate_meta_story(
     if len(event_ids) > settings.max_meta_story_select:
         raise ValueError(f"Maximum {settings.max_meta_story_select} events allowed")
 
+    start_time = time.perf_counter()
+    event_count = len(event_ids)
+
+    logger.info(
+        "meta_story_started",
+        user_id=user_id,
+        event_count=event_count,
+        language=language,
+    )
+
     supabase = await get_supabase_client()
 
     events = []
     for event_id in event_ids:
         event = await get_event_for_user(supabase, event_id, user_id)
         if not event:
+            logger.warning("meta_story_event_not_found", event_id=event_id)
             raise ValueError(f"Event {event_id} not found")
         if event.get("status") != "complete":
+            logger.warning("meta_story_event_not_complete", event_id=event_id, status=event.get("status"))
             raise ValueError(f"Event {event_id} is not complete")
         events.append(event)
-
-    from datetime import datetime
 
     def sort_key(e):
         date_str = e.get("time_anchor_date")
@@ -103,6 +114,12 @@ async def generate_meta_story(
 
     full_content = "\n\n".join(content_parts)
 
+    logger.debug(
+        "meta_story_content_prepared",
+        event_count=event_count,
+        content_length=len(full_content),
+    )
+
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     system_prompt = f"""You are a life story writer. Your task is to create a 
@@ -121,6 +138,7 @@ Guidelines:
 
 The output should be a single cohesive story, NOT separate summaries of each story."""
 
+    logger.debug("meta_story_llm_call", step="generate_summary")
     response = await client.chat.completions.create(
         model=settings.openai_model,
         messages=[
@@ -133,6 +151,7 @@ The output should be a single cohesive story, NOT separate summaries of each sto
 
     summary = response.choices[0].message.content or ""
 
+    logger.debug("meta_story_llm_call", step="generate_title")
     title_system_prompt = f"""You are a title generator. Create a short, descriptive 
 title (max 100 chars) for this life story in {language}."""
 
@@ -156,6 +175,27 @@ title (max 100 chars) for this life story in {language}."""
         source_section += f"{i+1}. {source_title} ({source_date})\n"
 
     final_summary = summary + source_section
+
+    duration_ms = (time.perf_counter() - start_time) * 1000
+
+    logger.info(
+        "meta_story_completed",
+        duration_ms=round(duration_ms, 2),
+        event_count=event_count,
+        summary_length=len(final_summary),
+        title=title[:50],
+    )
+
+    log_generation(
+        prompt=full_content[:1000],
+        completion=final_summary,
+        model=settings.openai_model,
+        metadata={
+            "operation": "meta_story",
+            "duration_ms": round(duration_ms, 2),
+            "event_count": event_count,
+        },
+    )
 
     return {
         "title": title,

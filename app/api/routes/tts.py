@@ -1,5 +1,6 @@
 from api.deps import CurrentUser, get_current_user
-from fastapi import APIRouter, Depends, HTTPException
+from api.rate_limit_config import limiter
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.tts import generate_speech
@@ -15,17 +16,19 @@ class TTSRequest(BaseModel):
 
 
 @router.post("/generate")
+@limiter.limit("20/minute")
 async def generate_tts(
-    request: TTSRequest,
+    request: Request,
+    tts_request: TTSRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Generate speech from text and return audio as streaming response."""
     try:
         audio_bytes, content_type = await generate_speech(
-            text=request.text,
-            voice=request.voice,
-            model=request.model,
-            response_format=request.response_format,
+            text=tts_request.text,
+            voice=tts_request.voice,
+            model=tts_request.model,
+            response_format=tts_request.response_format,
         )
     except Exception as e:
         raise HTTPException(

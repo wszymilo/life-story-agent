@@ -1,14 +1,20 @@
 import io
+import time
 
+from api.langfuse_config import log_generation
+from api.logging_config import get_logger
 from config import get_settings
 
 settings = get_settings()
+logger = get_logger()
 
 
 async def transcribe_audio_url(audio_url: str, language: str = "pl") -> str:
     """Transcribe audio from URL using OpenAI Whisper API."""
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
+
+    logger.debug("transcription_url_start", audio_url=audio_url, language=language)
 
     # Check if this is a Supabase Storage URL (private bucket scenario)
     # URL format: https://...supabase.co/storage/v1/object/public/audio-recordings/...
@@ -18,11 +24,15 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl") -> str:
         if len(path_parts) > 1:
             file_path = path_parts[1]
 
+            logger.debug("transcription_downloading", file_path=file_path)
+
             # Use service key to download from private bucket
             from supabase import create_client
 
             service_client = create_client(settings.supabase_url, settings.supabase_service_key)
             audio_content = service_client.storage.from_("audio-recordings").download(file_path)
+
+            logger.debug("transcription_downloaded", file_path=file_path, size_bytes=len(audio_content))
 
             # Transcribe the downloaded content
             return await transcribe_audio_data(audio_content, language)
@@ -53,19 +63,58 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl") -> str:
     audio_file = io.BytesIO(audio_data)
     audio_file.name = "recording.webm"
 
+    start_time = time.perf_counter()
+
     try:
+        logger.info(
+            "transcription_started",
+            language=language,
+            audio_size_bytes=len(audio_data),
+        )
+
         result = await client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file,
             language=language,
             response_format="text",
         )
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
         # Whisper returns string when response_format="text"
         if isinstance(result, str):
-            return result
-        return str(result)
+            transcript = result
+        else:
+            transcript = str(result)
+
+        transcript_length = len(transcript)
+
+        logger.info(
+            "transcription_completed",
+            duration_ms=round(duration_ms, 2),
+            transcript_length=transcript_length,
+        )
+
+        log_generation(
+            prompt="[audio data]",
+            completion=transcript,
+            model="whisper-1",
+            metadata={"operation": "transcription", "duration_ms": round(duration_ms, 2)},
+        )
+
+        return transcript
+
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         err_msg = str(e)
+
+        logger.error(
+            "transcription_failed",
+            duration_ms=round(duration_ms, 2),
+            error=err_msg,
+            error_type=type(e).__name__,
+        )
+
         # Simplify common errors
         if "Incorrect API key" in err_msg or "invalid_api_key" in err_msg:
             raise RuntimeError("Transcription failed: Invalid API key")

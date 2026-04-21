@@ -19,6 +19,10 @@ class Settings:
     log_level: str = "info"
     cors_origins: list[str] = ["http://localhost:5173"]
     max_meta_story_select: int = 10
+    sentry_dsn: str = ""
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://cloud.langfuse.com"
 
     def __init__(self) -> None:
         self.supabase_url = os.getenv("SUPABASE_URL", "")
@@ -33,6 +37,10 @@ class Settings:
         cors = os.getenv("CORS_ORIGINS", "http://localhost:5173")
         self.cors_origins = [s.strip() for s in cors.split(",")]
         self.max_meta_story_select = int(os.getenv("MAX_META_STORY_SELECT", "10"))
+        self.sentry_dsn = os.getenv("SENTRY_DSN", "")
+        self.langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+        self.langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY", "")
+        self.langfuse_base_url = os.getenv("LANGFUSE_BASE_URL", "https://cloud.langfuse.com")
 
 
 @lru_cache
