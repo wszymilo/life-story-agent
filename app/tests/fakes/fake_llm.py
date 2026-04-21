@@ -1,7 +1,7 @@
 """Fake LLM Service - programmable responses for testing without real API calls."""
 
 from typing import Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

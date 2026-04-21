@@ -28,11 +28,9 @@ export class MockMediaRecorder {
   ondataavailable: ((event: BlobEvent) => void) | null = null
   onstop: (() => void) | null = null
   onerror: ((event: Event) => void) | null = null
-  
-  private stream: MockMediaStream
-  
-  constructor(stream: MockMediaStream, options?: { mimeType?: string }) {
-    this.stream = stream
+
+  constructor(stream: MockMediaStream, _options?: { mimeType?: string }) {
+    void stream
   }
   
   start(timeslice?: number) {

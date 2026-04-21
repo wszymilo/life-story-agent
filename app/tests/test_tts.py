@@ -89,6 +89,6 @@ class TestFakeTTSValidation:
         """Test that fake handles Polish unicode text."""
         fake = FakeTTSService()
         
-        response = fake.synthesize("To jest polski tekst z polskimi znakami: ąęźż")
+        fake.synthesize("To jest polski tekst z polskimi znakami: ąęźż")
         
         assert "polski" in fake.get_synthesized_texts()[0].lower()
