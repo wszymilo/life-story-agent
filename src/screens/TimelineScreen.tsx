@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { listEvents, generateMetaStory, EventData } from '../services/events'
@@ -29,6 +30,11 @@ export function TimelineScreen() {
     } finally {
       setChangingLanguage(false)
     }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
   }
 
   const handleEventClick = (event: EventData) => {
@@ -136,6 +142,12 @@ export function TimelineScreen() {
               </option>
             ))}
           </select>
+          <button
+            onClick={handleLogout}
+            className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800"
+          >
+            Wyloguj
+          </button>
           {completedCount >= 2 && !multiSelectMode && (
             <button
               onClick={() => setMultiSelectMode(true)}
