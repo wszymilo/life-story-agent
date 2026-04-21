@@ -3,6 +3,7 @@ import uuid
 from typing import Optional
 
 from api.deps import CurrentUser, get_current_user
+from api.logging_config import get_logger
 from api.schemas.event import (
     AudioRecordingResponse,
     EventCreate,
@@ -27,6 +28,10 @@ from services.summary_generator import generate_summary as generate_event_summar
 from services.transcription import transcribe_audio_data, transcribe_audio_url
 
 router = APIRouter(prefix="/events", tags=["events"])
+logger = get_logger()
+
+MAX_FILE_SIZE_MB = 25
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 
 async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
@@ -269,11 +274,10 @@ async def add_recording(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Add a recording to an event. Accepts audio file via multipart/form-data."""
-    import structlog
-    logger = structlog.get_logger()
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type)
 
     if not file.content_type or not file.content_type.startswith("audio/"):
+        logger.warning("recording_invalid_content_type", content_type=file.content_type)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid audio file type",
@@ -281,10 +285,22 @@ async def add_recording(
 
     supabase = await get_supabase_client()
 
-    # Create storage client with extended timeout for large files
     storage_client = create_storage_client(timeout=120)
 
     audio_bytes = await file.read()
+    audio_size = len(audio_bytes)
+
+    if audio_size > MAX_FILE_SIZE_BYTES:
+        logger.warning(
+            "recording_file_too_large",
+            size_mb=round(audio_size / (1024 * 1024), 2),
+            max_mb=MAX_FILE_SIZE_MB,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB",
+        )
+
     audio_file = io.BytesIO(audio_bytes)
 
     file_path = f"{current_user.id}/{event_id}/{uuid.uuid4()}.webm"
@@ -295,7 +311,9 @@ async def add_recording(
             audio_file.getvalue(),
             {"content-type": "audio/webm"},
         )
+        logger.info("recording_uploaded", file_path=file_path, size_bytes=audio_size)
     except Exception as e:
+        logger.error("recording_upload_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload audio: {str(e)}",
