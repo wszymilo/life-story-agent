@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
+import { TopBar } from './TopBar'
 import { addRecording, createEvent, retryTranscribe, getEvent, EventData } from '../services/events'
 import { extractErrorMessage } from '../lib/errors'
 
@@ -47,12 +48,12 @@ export function RecordingScreen() {
       setError('')
 
       const eventTitle = title.trim() || 'My Life Story'
-      const event = await createEvent({ title: eventTitle })
-      setEventId(event.id)
+      const targetEventId = urlEventId || (await createEvent({ title: eventTitle })).id
+      setEventId(targetEventId)
 
       try {
         setState('transcribing')
-        const recording = await addRecording(event.id, audioBlob, 'initial_story')
+        const recording = await addRecording(targetEventId, audioBlob, 'initial_story')
         setRecordingId(recording.id)
 
         // Check if transcription succeeded
@@ -73,7 +74,7 @@ export function RecordingScreen() {
         if (errorWithAudio.audioUrl || (err as Error).message?.includes('saved')) {
           // Extract recording ID from error response if available
           setError('Transcription failed. Your recording is saved.')
-          setRecordingId(errorWithAudio.recordingId || event.id)
+          setRecordingId(errorWithAudio.recordingId || targetEventId)
           setState('error')
         } else {
           throw err
@@ -114,24 +115,25 @@ export function RecordingScreen() {
 
   if (state === 'complete') {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <TopBar title="Story Recorded" back={{ href: '/' }} />
+        <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <div className="text-green-600 text-5xl mb-4">✓</div>
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
               Story Recorded!
             </h1>
-            <p className="text-gray-600 mb-6">{transcript}</p>
+            <p className="text-gray-600 mb-6 text-lg">{transcript}</p>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => navigate(`/interview/${eventId}`)}
-                className="w-full py-4 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
+                className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
               >
                 Continue to Interview
               </button>
               <button
                 onClick={() => navigate('/')}
-                className="w-full py-3 text-gray-600 hover:text-gray-800 text-sm"
+                className="w-full py-3 text-gray-600 hover:text-gray-800 text-lg"
               >
                 Skip for now
               </button>
@@ -144,18 +146,19 @@ export function RecordingScreen() {
 
   if (state === 'error') {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <TopBar title="Something went wrong" back={{ href: '/' }} />
+        <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
               {retrying ? 'Retrying...' : 'Something went wrong'}
             </h1>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p className="text-gray-600 mb-6 text-lg">{error}</p>
 
             {recordingId && !retrying && (
               <button
                 onClick={handleRetryTranscribe}
-                className="w-full py-4 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700 mb-4"
+                className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700 mb-4"
               >
                 Retry Transcription
               </button>
@@ -163,7 +166,7 @@ export function RecordingScreen() {
 
             <button
               onClick={handleRetry}
-              className="w-full py-4 bg-gray-200 text-gray-700 rounded-lg font-medium text-lg hover:bg-gray-300"
+              className="w-full py-4 min-h-12 bg-gray-200 text-gray-700 rounded-lg font-medium text-lg hover:bg-gray-300"
             >
               Record New Story
             </button>
@@ -174,17 +177,17 @@ export function RecordingScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Tell Your Story</h1>
-          <p className="text-gray-600 mt-2">
+    <div className="min-h-screen bg-gray-50">
+      <TopBar title="Tell Your Story" back={{ href: '/' }} />
+      <div className="max-w-2xl mx-auto p-4">
+        <div className="text-center mb-6">
+          <p className="text-gray-600 text-lg">
             Press the button below and share your life story
           </p>
         </div>
 
         <div className="mb-4">
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="title" className="block text-lg font-medium text-gray-700 mb-2">
             Title (optional)
           </label>
           <input
@@ -193,34 +196,26 @@ export function RecordingScreen() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., My childhood in Warsaw"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg min-h-12"
             maxLength={100}
           />
         </div>
 
         {state === 'uploading' && (
           <div className="text-center mb-4">
-            <p className="text-blue-600 font-medium">Uploading your recording...</p>
+            <p className="text-blue-600 font-medium text-lg">Uploading your recording...</p>
           </div>
         )}
 
         {state === 'transcribing' && (
           <div className="text-center mb-4">
-            <p className="text-blue-600 font-medium">Processing your story...</p>
+            <p className="text-blue-600 font-medium text-lg">Processing your story...</p>
           </div>
         )}
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <AudioRecorder onRecordingComplete={handleRecordingComplete} />
         </div>
-
-        <p className="text-center text-gray-500 text-sm mt-6">
-          {state === 'idle'
-            ? 'Tap the red circle to start recording'
-            : state === 'uploading'
-            ? 'Please wait while we upload your recording'
-            : 'Please wait while we process your story'}
-        </p>
       </div>
     </div>
   )

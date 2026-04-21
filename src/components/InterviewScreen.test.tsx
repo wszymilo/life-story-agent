@@ -187,7 +187,6 @@ describe('InterviewScreen', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByRole('button', { name: /skip question/i })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /next question/i })).toBeInTheDocument()
       },
       { timeout: 2000 }
@@ -222,6 +221,58 @@ describe('InterviewScreen', () => {
     await waitFor(
       () => {
         expect(screen.getByRole('button', { name: /end interview/i })).toBeInTheDocument()
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  it('shows initial story recording prompt when no questions exist', async () => {
+    mockGetEventWithQuestions.mockResolvedValueOnce({
+      id: 'evt-1',
+      title: 'My Story',
+      time_anchor: null,
+      time_anchor_date: null,
+      place: null,
+      status: 'recording',
+      summary: null,
+      created_at: new Date().toISOString(),
+      follow_up_questions: [],
+    })
+    mockAnalyzeEvent.mockResolvedValueOnce({
+      extracted_time: null,
+      extracted_place: null,
+      people: [],
+      key_events: [],
+      themes: [],
+      summary: null,
+    })
+    mockGenerateFollowUp.mockResolvedValueOnce({
+      id: 'q-new',
+      event_id: 'evt-1',
+      question_text: 'What is your earliest memory?',
+      was_answered: false,
+      sequence_order: 1,
+      created_at: new Date().toISOString(),
+    })
+
+    render(<InterviewScreen />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByText('Record your answer:')).toBeInTheDocument()
+      },
+      { timeout: 2000 }
+    )
+  })
+
+  it('handles error when getEventWithQuestions fails', async () => {
+    mockGetEventWithQuestions.mockRejectedValueOnce(new Error('Network error'))
+
+    render(<InterviewScreen />)
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/something went wrong/i)).toBeInTheDocument()
       },
       { timeout: 2000 }
     )

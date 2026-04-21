@@ -1,6 +1,12 @@
+import time
 
+from api.langfuse_config import log_generation
+from api.logging_config import get_logger
 from config import get_settings
 from openai import AsyncOpenAI
+
+settings = get_settings()
+logger = get_logger()
 
 
 async def generate_speech(
@@ -14,8 +20,6 @@ async def generate_speech(
     Returns:
         tuple: (audio_bytes, content_type)
     """
-    settings = get_settings()
-
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
@@ -42,7 +46,18 @@ async def generate_speech(
         "pcm": "audio/pcm",
     }
 
+    text_length = len(text)
+    start_time = time.perf_counter()
+
     try:
+        logger.info(
+            "tts_started",
+            voice=voice,
+            model=model,
+            response_format=response_format,
+            text_length=text_length,
+        )
+
         response = await client.audio.speech.create(
             model=model,
             voice=voice,
@@ -50,12 +65,38 @@ async def generate_speech(
             response_format=response_format,
         )
 
+        duration_ms = (time.perf_counter() - start_time) * 1000
         audio_bytes = response.content
+        audio_size = len(audio_bytes)
+
+        logger.info(
+            "tts_completed",
+            duration_ms=round(duration_ms, 2),
+            audio_size_bytes=audio_size,
+            voice=voice,
+        )
+
+        log_generation(
+            prompt=text[:500],
+            completion="[audio data]",
+            model=model,
+            metadata={"operation": "tts", "duration_ms": round(duration_ms, 2), "voice": voice},
+        )
 
         return audio_bytes, content_type_map.get(response_format, "audio/mpeg")
 
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         err_msg = str(e)
+
+        logger.error(
+            "tts_failed",
+            duration_ms=round(duration_ms, 2),
+            error=err_msg,
+            error_type=type(e).__name__,
+            voice=voice,
+        )
+
         if "api_key" in err_msg.lower():
             raise RuntimeError("TTS failed: Invalid API key")
         if "rate_limit" in err_msg.lower():

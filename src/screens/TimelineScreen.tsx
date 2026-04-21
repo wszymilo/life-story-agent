@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
+import { TopBar } from '../components/TopBar'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { listEvents, generateMetaStory, EventData } from '../services/events'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
@@ -17,6 +20,8 @@ export function TimelineScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
   const [changingLanguage, setChangingLanguage] = useState(false)
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
 
   const handleLanguageChange = async (lang: string) => {
     if (changingLanguage || !profile) return
@@ -29,6 +34,16 @@ export function TimelineScreen() {
     } finally {
       setChangingLanguage(false)
     }
+  }
+
+  const handleLogout = () => {
+    setShowLogoutDialog(true)
+  }
+
+  const handleConfirmLogout = async () => {
+    setLogoutLoading(true)
+    await supabase.auth.signOut()
+    navigate('/login')
   }
 
   const handleEventClick = (event: EventData) => {
@@ -119,51 +134,47 @@ export function TimelineScreen() {
   const completedCount = events.filter(e => e.status === 'complete').length
 
   const currentLanguage = profile?.preferred_language || 'pl'
-  
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <select
-            value={currentLanguage}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            disabled={changingLanguage || !profile}
-            className="text-sm px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 disabled:opacity-50"
-          >
-            {LANGUAGE_OPTIONS.map((opt) => (
-              <option key={opt.code} value={opt.code}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {completedCount >= 2 && !multiSelectMode && (
-            <button
-              onClick={() => setMultiSelectMode(true)}
-              className="text-sm px-3 py-1 text-blue-600 hover:text-blue-800"
-            >
-              Select
-            </button>
-          )}
-          {multiSelectMode && (
-            <button
-              onClick={() => {
-                setMultiSelectMode(false)
-                setSelectedIds(new Set())
-              }}
-              className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800"
-            >
-              Done
-            </button>
-          )}
-        </div>
 
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <TopBar
+        title=""
+        secondary={
+          multiSelectMode
+            ? { label: 'Done', onClick: () => { setMultiSelectMode(false); setSelectedIds(new Set()) } }
+            : { label: 'Logout', onClick: handleLogout }
+        }
+        primary={
+          completedCount >= 2 && !multiSelectMode
+            ? { label: 'Select', onClick: () => setMultiSelectMode(true) }
+            : undefined
+        }
+        tertiaryLeft={
+          !multiSelectMode && (
+            <select
+              value={currentLanguage}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              disabled={changingLanguage || !profile}
+              className="px-3 py-2 text-base min-h-10 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50"
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )
+        }
+      />
+
+      <div className="max-w-2xl mx-auto p-4">
         {multiSelectMode && selectedIds.size >= 2 && (
           <button
             onClick={handleCombineStories}
             disabled={generating}
-            className="w-full mb-4 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
+            className="w-full mb-4 py-4 min-h-14 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
           >
-            {generating ? 'Combining stories...' : `Combine ${selectedIds.size} Stories`}
+            {generating ? 'Combining...' : `Combine ${selectedIds.size} Stories`}
           </button>
         )}
 
@@ -189,33 +200,48 @@ export function TimelineScreen() {
                 multiSelectMode={multiSelectMode}
                 selected={selectedIds.has(event.id)}
                 onSelect={handleSelectToggle}
+                language={currentLanguage}
               />
             ))}
           </Timeline>
         )}
-      </div>
 
-      {events.length > 0 && (
-        <button
-          onClick={() => navigate('/record')}
-          className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
-          aria-label="Add new memory"
-        >
-          <svg
-            className="w-8 h-8 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
+        {events.length > 0 && (
+          <>
+            <button
+              onClick={() => navigate('/record')}
+              className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
+              aria-label="Add new memory"
+            >
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+
+            <ConfirmDialog
+              open={showLogoutDialog}
+              onClose={() => setShowLogoutDialog(false)}
+              onConfirm={handleConfirmLogout}
+              title="Sign Out"
+              message="Are you sure you want to sign out?"
+              confirmLabel="Sign Out"
+              cancelLabel="Cancel"
+              destructive
+              loading={logoutLoading}
             />
-          </svg>
-        </button>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

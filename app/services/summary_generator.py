@@ -1,9 +1,15 @@
+import time
 from datetime import date, datetime
 from typing import Any, Optional
 
+from api.langfuse_config import log_generation
+from api.logging_config import get_logger
 from api.schemas.summary import SummaryWithTitle
 from config import get_settings
 from openai import AsyncOpenAI
+
+settings = get_settings()
+logger = get_logger()
 
 MAX_RETRIES = 2
 
@@ -23,8 +29,6 @@ async def generate_summary(
     Returns:
         SummaryWithTitle with summary, title, and retry flag
     """
-    settings = get_settings()
-
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
@@ -32,6 +36,17 @@ async def generate_summary(
         raise ValueError("No content provided to generate summary")
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+    transcript_count = len(transcripts) if transcripts else 0
+    qa_count = len(questions_and_answers) if questions_and_answers else 0
+    start_time = time.perf_counter()
+
+    logger.info(
+        "summary_generation_started",
+        language=language,
+        transcript_count=transcript_count,
+        qa_count=qa_count,
+    )
 
     # Prepare content for summary
     content_parts = []
@@ -48,12 +63,14 @@ async def generate_summary(
 
     # Generator step
     summary = await _generate_summary_text(client, full_content, language)
+    logger.debug("summary_generator_step_completed")
 
     # Reviewer step - validate grounding
     is_grounded, feedback = await _validate_grounding(
         client, summary, full_content, language
     )
 
+    retry_count = 0
     was_retried = False
 
     # Retry if not grounded (max 2 retries)
@@ -61,7 +78,15 @@ async def generate_summary(
         if is_grounded:
             break
 
+        retry_count += 1
         was_retried = True
+
+        logger.info(
+            "summary_regeneration",
+            retry_count=retry_count,
+            max_retries=MAX_RETRIES,
+            feedback=feedback[:200] if feedback else None,
+        )
 
         # Regenerate with feedback
         summary = await _generate_summary_with_feedback(
@@ -73,11 +98,42 @@ async def generate_summary(
             client, summary, full_content, language
         )
 
+    if was_retried:
+        logger.info("summary_retried", retry_count=retry_count)
+
     # Generate title from summary
     title = await _generate_title(client, summary, language)
+    logger.debug("summary_title_generated", title=title[:50])
 
     # Extract time anchor date from content
     time_anchor_date = await _extract_time_anchor(client, full_content, language)
+    if time_anchor_date:
+        logger.debug("summary_time_anchor_extracted", date=str(time_anchor_date))
+
+    duration_ms = (time.perf_counter() - start_time) * 1000
+
+    logger.info(
+        "summary_generation_completed",
+        duration_ms=round(duration_ms, 2),
+        was_retried=was_retried,
+        retry_count=retry_count,
+        summary_length=len(summary),
+        title=title[:50],
+        has_time_anchor=time_anchor_date is not None,
+    )
+
+    log_generation(
+        prompt=full_content[:1000] if full_content else "[no content]",
+        completion=summary,
+        model=settings.openai_model,
+        metadata={
+            "operation": "summary_generation",
+            "duration_ms": round(duration_ms, 2),
+            "was_retried": was_retried,
+            "transcript_count": transcript_count,
+            "qa_count": qa_count,
+        },
+    )
 
     return SummaryWithTitle(
         summary=summary,

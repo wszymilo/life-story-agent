@@ -1,7 +1,13 @@
+import time
 
+from api.langfuse_config import log_generation
+from api.logging_config import get_logger
 from api.schemas.interview import FollowUpQuestion, TranscriptAnalysis
 from config import get_settings
 from openai import AsyncOpenAI
+
+settings = get_settings()
+logger = get_logger()
 
 LANGUAGE_NAMES = {
     "pl": "Polish",
@@ -29,8 +35,6 @@ async def analyze_transcript(
 
     Uses GPT-4o-mini with structured outputs for reliable parsing.
     """
-    settings = get_settings()
-
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
@@ -40,6 +44,8 @@ async def analyze_transcript(
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     display_language = get_language_display(language)
+    transcript_length = len(transcript)
+    start_time = time.perf_counter()
 
     system_prompt = f"""You are an expert at analyzing personal stories and life histories.
 Your task is to extract structured information from the given transcript.
@@ -56,6 +62,13 @@ Be thorough but concise. If something is not mentioned, leave it as null/empty.
 The transcript is in {display_language} - extract information accordingly."""
 
     try:
+        logger.info(
+            "transcript_analysis_started",
+            language=language,
+            display_language=display_language,
+            transcript_length=transcript_length,
+        )
+
         response = await client.beta.chat.completions.parse(
             model=settings.openai_model,
             messages=[
@@ -65,10 +78,37 @@ The transcript is in {display_language} - extract information accordingly."""
             response_format=TranscriptAnalysis,
         )
 
-        return response.choices[0].message.parsed
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        result = response.choices[0].message.parsed
+
+        logger.info(
+            "transcript_analysis_completed",
+            duration_ms=round(duration_ms, 2),
+            has_time=result.extracted_time is not None,
+            has_place=result.extracted_place is not None,
+            people_count=len(result.people) if result.people else 0,
+        )
+
+        log_generation(
+            prompt=transcript[:500],
+            completion=str(result.model_dump()),
+            model=settings.openai_model,
+            metadata={"operation": "transcript_analysis", "duration_ms": round(duration_ms, 2)},
+        )
+
+        return result
 
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         err_msg = str(e)
+
+        logger.error(
+            "transcript_analysis_failed",
+            duration_ms=round(duration_ms, 2),
+            error=err_msg,
+            error_type=type(e).__name__,
+        )
+
         if "api_key" in err_msg.lower():
             raise RuntimeError("Analysis failed: Invalid API key")
         if "rate_limit" in err_msg.lower():
@@ -85,8 +125,6 @@ async def generate_follow_up_question(
 
     Uses GPT-4o-mini with structured outputs for reliable parsing.
     """
-    settings = get_settings()
-
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
@@ -96,6 +134,9 @@ async def generate_follow_up_question(
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     display_language = get_language_display(language)
+    transcript_length = len(transcript)
+    existing_count = len(existing_questions) if existing_questions else 0
+    start_time = time.perf_counter()
 
     existing_questions_text = ""
     if existing_questions:
@@ -126,6 +167,14 @@ Return a structured question with:
 Avoid questions that have already been asked (see existing questions below).{existing_questions_text}"""
 
     try:
+        logger.info(
+            "follow_up_question_started",
+            language=language,
+            display_language=display_language,
+            transcript_length=transcript_length,
+            existing_questions_count=existing_count,
+        )
+
         response = await client.beta.chat.completions.parse(
             model=settings.openai_model,
             messages=[
@@ -135,10 +184,36 @@ Avoid questions that have already been asked (see existing questions below).{exi
             response_format=FollowUpQuestion,
         )
 
-        return response.choices[0].message.parsed
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        result = response.choices[0].message.parsed
+
+        logger.info(
+            "follow_up_question_completed",
+            duration_ms=round(duration_ms, 2),
+            question_type=result.question_type,
+            target_area=result.target_area,
+        )
+
+        log_generation(
+            prompt=transcript[:500],
+            completion=str(result.model_dump()),
+            model=settings.openai_model,
+            metadata={"operation": "follow_up_question", "duration_ms": round(duration_ms, 2)},
+        )
+
+        return result
 
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         err_msg = str(e)
+
+        logger.error(
+            "follow_up_question_failed",
+            duration_ms=round(duration_ms, 2),
+            error=err_msg,
+            error_type=type(e).__name__,
+        )
+
         if "api_key" in err_msg.lower():
             raise RuntimeError("Question generation failed: Invalid API key")
         if "rate_limit" in err_msg.lower():

@@ -95,29 +95,23 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading }: Au
         </button>
       )}
 
-      {audioBlob && !isUploading && (
-        <div className="flex flex-col items-center gap-4">
-          <div className="text-green-600 font-medium">Recording saved!</div>
-          <button
-            onClick={handleReset}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-          >
-            Record Another
-          </button>
-        </div>
-      )}
-
       {audioBlob && isUploading && (
         <div className="flex flex-col items-center gap-4">
           <div className="text-blue-600 font-medium">Uploading...</div>
         </div>
       )}
 
-      <p className="text-gray-500 text-sm mt-8 text-center max-w-xs">
-        {isRecording
-          ? 'Tap the square to stop recording'
-          : 'Tap the red circle to start recording'}
-      </p>
+      {!audioBlob && (
+        isRecording ? (
+          <p className="text-gray-500 text-sm mt-8 text-center max-w-xs">
+            Tap the square to stop recording
+          </p>
+        ) : (
+          <p className="text-gray-500 text-sm mt-8 text-center max-w-xs">
+            Tap the red circle to start recording
+          </p>
+        )
+      )}
     </div>
   )
 }
