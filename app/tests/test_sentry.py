@@ -5,26 +5,36 @@ from unittest.mock import patch
 
 def test_init_sentry_without_dsn():
     """Test Sentry init is skipped when no DSN configured."""
-    with patch("api.sentry_config.get_settings") as mock_settings:
-        mock_settings.return_value.sentry_dsn = ""
-        mock_settings.return_value.environment = "test"
+    from api.sentry_config import settings
 
+    original_dsn = settings.sentry_dsn
+    settings.sentry_dsn = ""
+
+    try:
         from api.sentry_config import init_sentry
 
         init_sentry()
+    finally:
+        settings.sentry_dsn = original_dsn
 
 
 def test_init_sentry_with_dsn():
     """Test Sentry init when DSN is configured."""
-    with patch("api.sentry_config.get_settings") as mock_settings:
-        mock_settings.return_value.sentry_dsn = "https://test@test.sentry.io/123"
-        mock_settings.return_value.environment = "test"
+    from api.sentry_config import settings
 
-        with patch("api.sentry_config.sentry_sdk") as mock_sentry:
-            from api.sentry_config import init_sentry
+    original_dsn = settings.sentry_dsn
+    original_env = settings.environment
+    settings.sentry_dsn = "https://test@test.sentry.io/123"
+    settings.environment = "test"
 
-            init_sentry()
-            mock_sentry.init.assert_called_once()
+    with patch("api.sentry_config.sentry_sdk") as mock_sentry:
+        from api.sentry_config import init_sentry
+
+        init_sentry()
+        mock_sentry.init.assert_called_once()
+
+    settings.sentry_dsn = original_dsn
+    settings.environment = original_env
 
 
 def test_capture_exception():
