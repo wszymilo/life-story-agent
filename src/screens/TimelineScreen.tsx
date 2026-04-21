@@ -201,6 +201,7 @@ export function TimelineScreen() {
                 multiSelectMode={multiSelectMode}
                 selected={selectedIds.has(event.id)}
                 onSelect={handleSelectToggle}
+                language={currentLanguage}
               />
             ))}
           </Timeline>

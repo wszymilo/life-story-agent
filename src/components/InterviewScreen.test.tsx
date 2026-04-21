@@ -187,7 +187,6 @@ describe('InterviewScreen', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByRole('button', { name: /skip question/i })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /next question/i })).toBeInTheDocument()
       },
       { timeout: 2000 }

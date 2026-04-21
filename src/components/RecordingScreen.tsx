@@ -47,12 +47,12 @@ export function RecordingScreen() {
       setError('')
 
       const eventTitle = title.trim() || 'My Life Story'
-      const event = await createEvent({ title: eventTitle })
-      setEventId(event.id)
+      const targetEventId = urlEventId || (await createEvent({ title: eventTitle })).id
+      setEventId(targetEventId)
 
       try {
         setState('transcribing')
-        const recording = await addRecording(event.id, audioBlob, 'initial_story')
+        const recording = await addRecording(targetEventId, audioBlob, 'initial_story')
         setRecordingId(recording.id)
 
         // Check if transcription succeeded
@@ -73,7 +73,7 @@ export function RecordingScreen() {
         if (errorWithAudio.audioUrl || (err as Error).message?.includes('saved')) {
           // Extract recording ID from error response if available
           setError('Transcription failed. Your recording is saved.')
-          setRecordingId(errorWithAudio.recordingId || event.id)
+          setRecordingId(errorWithAudio.recordingId || targetEventId)
           setState('error')
         } else {
           throw err
@@ -176,6 +176,17 @@ export function RecordingScreen() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center text-gray-600"
+          >
+            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+        </div>
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Tell Your Story</h1>
           <p className="text-gray-600 mt-2">
@@ -213,14 +224,6 @@ export function RecordingScreen() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <AudioRecorder onRecordingComplete={handleRecordingComplete} />
         </div>
-
-        <p className="text-center text-gray-500 text-sm mt-6">
-          {state === 'idle'
-            ? 'Tap the red circle to start recording'
-            : state === 'uploading'
-            ? 'Please wait while we upload your recording'
-            : 'Please wait while we process your story'}
-        </p>
       </div>
     </div>
   )

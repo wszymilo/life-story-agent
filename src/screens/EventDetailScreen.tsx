@@ -209,12 +209,25 @@ export function EventDetailScreen() {
           )}
 
           {isDraft && (
-            <button
-              onClick={() => navigate(`/record/${event.id}`)}
-              className="mt-4 w-full py-3 bg-blue-600 text-white rounded-lg font-medium"
-            >
-              Continue Recording
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate(`/interview/${event.id}`)}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium"
+              >
+                Continue to Interview
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to record a new story? This will delete the current draft.')) {
+                    await deleteEvent(event.id)
+                    navigate('/record')
+                  }
+                }}
+                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
+              >
+                Record Again
+              </button>
+            </div>
           )}
         </div>
 

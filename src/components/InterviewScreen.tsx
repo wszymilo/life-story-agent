@@ -4,7 +4,6 @@ import { AudioRecorder } from './AudioRecorder'
 import {
   analyzeEvent,
   generateFollowUp,
-  skipFollowUp,
   getEventWithQuestions,
   generateTTS,
   FollowUpQuestion,
@@ -112,17 +111,6 @@ export function InterviewScreen() {
       setState('ready')
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  const handleSkip = async () => {
-    if (!eventId || !currentQuestion) return
-
-    try {
-      await skipFollowUp(eventId, currentQuestion.id)
-      window.location.reload()
-    } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to skip question'))
     }
   }
 
@@ -255,12 +243,6 @@ export function InterviewScreen() {
 
           <div className="flex gap-4 mt-6">
             <button
-              onClick={handleSkip}
-              className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
-            >
-              Skip Question
-            </button>
-            <button
               onClick={handleNextQuestion}
               className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium"
             >
@@ -270,7 +252,7 @@ export function InterviewScreen() {
 
           <button
             onClick={handleEnd}
-            className="w-full mt-4 py-2 text-gray-600 hover:text-gray-800"
+            className="w-full mt-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
           >
             End Interview
           </button>

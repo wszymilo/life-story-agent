@@ -136,6 +136,8 @@ async def generate_follow_up(
             detail=str(e),
         )
 
+    supabase.table("follow_up_questions").delete().eq("event_id", str(event_id)).eq("was_answered", False).execute()
+
     sequence_order = get_next_sequence_order(supabase, "follow_up_questions", str(event_id))
 
     question_data = {

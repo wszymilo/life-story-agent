@@ -7,9 +7,10 @@ interface EventCardProps {
   multiSelectMode?: boolean
   selected?: boolean
   onSelect?: (eventId: string) => void
+  language?: string
 }
 
-export function EventCard({ event, onClick, multiSelectMode, selected, onSelect }: EventCardProps) {
+export function EventCard({ event, onClick, multiSelectMode, selected, onSelect, language = 'pl' }: EventCardProps) {
   const navigate = useNavigate()
   const isDraft = event.status === 'draft'
 
@@ -25,7 +26,8 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect 
     if (!dateStr) return 'Unknown date'
     try {
       const date = new Date(dateStr)
-      return date.toLocaleDateString('pl-PL', {
+      const locale = language === 'en' ? 'en-GB' : `${language}-${language.toUpperCase()}`
+      return date.toLocaleDateString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -75,10 +77,19 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect 
           )}
         </div>
 
-      <p className="text-sm text-gray-600 mb-2">{formatDate(displayDate)}</p>
-
-      {event.place && (
-        <p className="text-sm text-gray-500 mb-2">{event.place}</p>
+      {(displayDate || event.place) && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {displayDate && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
+              {formatDate(displayDate)}
+            </span>
+          )}
+          {event.place && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
+              {event.place}
+            </span>
+          )}
+        </div>
       )}
 
       {summaryPreview && (
