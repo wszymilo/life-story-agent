@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
+import { TopBar } from './TopBar'
 import {
   analyzeEvent,
   generateFollowUp,
@@ -19,6 +20,7 @@ export function InterviewScreen() {
   const navigate = useNavigate()
   const [state, setState] = useState<InterviewState>('loading')
   const [isUploading, setIsUploading] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [event, setEvent] = useState<EventWithQuestions | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
   const [error, setError] = useState<string>('')
@@ -117,12 +119,15 @@ export function InterviewScreen() {
   const handleNextQuestion = async () => {
     if (!eventId) return
 
+    setIsGenerating(true)
     try {
       const question = await generateFollowUp(eventId)
       setCurrentQuestion(question as unknown as FollowUpQuestion)
       setState('ready')
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to generate next question'))
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -136,13 +141,14 @@ export function InterviewScreen() {
 
   if (state === 'loading' || state === 'analyzing') {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="max-w-2xl mx-auto text-center">
+      <div className="min-h-screen bg-gray-50">
+        <TopBar title="Interview"  />
+        <div className="max-w-2xl mx-auto p-4 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900">
             {state === 'loading' ? 'Loading...' : 'Analyzing your story...'}
           </h2>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 mt-2 text-lg">
             {state === 'analyzing'
               ? 'Extracting details and preparing questions for you'
               : 'Please wait...'}
@@ -154,21 +160,22 @@ export function InterviewScreen() {
 
   if (state === 'error') {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <TopBar title="Error"  />
+        <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-red-600 mb-4">Something went wrong</h2>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <p className="text-gray-600 mb-4 text-lg">{error}</p>
             <div className="flex gap-4">
               <button
                 onClick={() => window.location.reload()}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium"
+                className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
               >
                 Try Again
               </button>
               <button
                 onClick={() => navigate('/')}
-                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
+                className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium"
               >
                 Go Home
               </button>
@@ -181,17 +188,18 @@ export function InterviewScreen() {
 
   if (state === 'complete') {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <TopBar title="Interview Complete"  />
+        <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <div className="text-green-600 text-5xl mb-4">✓</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Interview Complete!</h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-6 text-lg">
               Thank you for sharing more about your life story.
             </p>
             <button
               onClick={handleEnd}
-              className="w-full py-4 bg-blue-600 text-white rounded-lg font-medium text-lg"
+              className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
             >
               Go to Timeline
             </button>
@@ -202,11 +210,23 @@ export function InterviewScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <TopBar
+        title="Follow-up Question"
+        secondary={{ label: 'End Interview', onClick: handleEnd }}
+        tertiaryLeft={
+          <button
+            onClick={handleNextQuestion}
+            disabled={isGenerating}
+            className="px-4 py-3 min-h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
+          >
+            {isGenerating ? 'Generating...' : 'Next Question'}
+          </button>
+        }
+      />
+      <div className="max-w-2xl mx-auto p-4">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Follow-up Question</h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-6 text-lg">
             {event?.title || 'Your Life Story'}
           </p>
 
@@ -224,7 +244,7 @@ export function InterviewScreen() {
                 <button
                   onClick={playQuestionAudio}
                   disabled={state === 'playing'}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
+                  className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
                 >
                   {state === 'playing' ? 'Playing...' : 'Play Question'}
                 </button>
@@ -233,29 +253,13 @@ export function InterviewScreen() {
           )}
 
           <div className="border-t pt-6">
-            <p className="text-gray-600 mb-4">Record your answer:</p>
+            <p className="text-gray-600 mb-4 text-lg">Record your answer:</p>
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}
               disabled={state === 'playing'}
               isUploading={isUploading}
             />
           </div>
-
-          <div className="flex gap-4 mt-6">
-            <button
-              onClick={handleNextQuestion}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium"
-            >
-              Next Question
-            </button>
-          </div>
-
-          <button
-            onClick={handleEnd}
-            className="w-full mt-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
-          >
-            End Interview
-          </button>
         </div>
       </div>
     </div>

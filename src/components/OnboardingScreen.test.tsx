@@ -85,7 +85,9 @@ describe('OnboardingScreen', () => {
       expect(screen.getByText('When were you born?')).toBeInTheDocument()
     })
     
-    await userEvent.click(screen.getByRole('button', { name: /back/i }))
+    // Click the form's Back button (not the TopBar Back button)
+    const backButtons = screen.getAllByRole('button', { name: /back/i })
+    await userEvent.click(backButtons[backButtons.length - 1])
     
     await waitFor(() => {
       expect(screen.getByText('What is your name?')).toBeInTheDocument()

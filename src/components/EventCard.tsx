@@ -71,7 +71,7 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect,
             {event.title || 'Untitled Memory'}
           </h3>
           {isDraft && (
-            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full ml-2">
+            <span className="text-base bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full font-medium">
               Draft
             </span>
           )}

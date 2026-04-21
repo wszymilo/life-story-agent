@@ -79,7 +79,7 @@ describe('EventDetailScreen', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('Record Again')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /record again/i })).toBeInTheDocument()
       },
       { timeout: 200 }
     )
