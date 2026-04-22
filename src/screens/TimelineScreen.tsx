@@ -151,18 +151,27 @@ export function TimelineScreen() {
         }
         tertiaryLeft={
           !multiSelectMode && (
-            <select
-              value={currentLanguage}
-              onChange={(e) => handleLanguageChange(e.target.value)}
-              disabled={changingLanguage || !profile}
-              className="px-3 py-2 text-base min-h-10 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50"
-            >
-              {LANGUAGE_OPTIONS.map((opt) => (
-                <option key={opt.code} value={opt.code}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={currentLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                disabled={changingLanguage || !profile}
+                className="px-3 py-2 text-base min-h-10 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50"
+              >
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <option key={opt.code} value={opt.code}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
+                title="Dashboard"
+              >
+                📊
+              </button>
+            </div>
           )
         }
       />
