@@ -17,6 +17,7 @@ export function RecordingScreen() {
   const [eventId, setEventId] = useState<string>('')
   const [retrying, setRetrying] = useState<boolean>(false)
   const [title, setTitle] = useState<string>('')
+  const [statusMessage, setStatusMessage] = useState<string>('')
 
   const loadExistingEvent = async (id: string) => {
     try {
@@ -45,6 +46,7 @@ export function RecordingScreen() {
   const handleRecordingComplete = async (audioBlob: Blob) => {
     try {
       setState('uploading')
+      setStatusMessage('Uploading your recording...')
       setError('')
 
       const eventTitle = title.trim() || 'My Life Story'
@@ -53,8 +55,10 @@ export function RecordingScreen() {
 
       try {
         setState('transcribing')
+        setStatusMessage('Processing your story...')
         const recording = await addRecording(targetEventId, audioBlob, 'initial_story')
         setRecordingId(recording.id)
+        setStatusMessage('')
 
         // Check if transcription succeeded
         if (recording.transcript) {
@@ -69,6 +73,7 @@ export function RecordingScreen() {
           setState('complete')
         }
       } catch (err) {
+        setStatusMessage('')
         // Check if we have audio_url (from transcription error with saved recording)
         const errorWithAudio = (err as any)
         if (errorWithAudio.audioUrl || (err as Error).message?.includes('saved')) {
@@ -81,6 +86,7 @@ export function RecordingScreen() {
         }
       }
     } catch (err) {
+      setStatusMessage('')
       setError(extractErrorMessage(err, 'Failed to process recording'))
       setState('error')
     }
@@ -201,20 +207,8 @@ export function RecordingScreen() {
           />
         </div>
 
-        {state === 'uploading' && (
-          <div className="text-center mb-4">
-            <p className="text-blue-600 font-medium text-lg">Uploading your recording...</p>
-          </div>
-        )}
-
-        {state === 'transcribing' && (
-          <div className="text-center mb-4">
-            <p className="text-blue-600 font-medium text-lg">Processing your story...</p>
-          </div>
-        )}
-
         <div className="bg-white rounded-lg shadow-md p-6">
-          <AudioRecorder onRecordingComplete={handleRecordingComplete} />
+          <AudioRecorder onRecordingComplete={handleRecordingComplete} statusMessage={statusMessage} />
         </div>
       </div>
     </div>
