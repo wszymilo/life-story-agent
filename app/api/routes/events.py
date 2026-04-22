@@ -101,7 +101,6 @@ async def list_events(
 
 
 @router.get("/{event_id}", response_model=EventWithRecordingsResponse)
-@router.get("/{event_id}/", response_model=EventWithRecordingsResponse)
 async def get_event(
     request: Request,
     event_id: uuid.UUID,
@@ -115,7 +114,6 @@ async def get_event(
 
 
 @router.put("/{event_id}", response_model=EventResponse)
-@router.put("/{event_id}/", response_model=EventResponse)
 async def update_event(
     request: Request,
     event_id: uuid.UUID,
@@ -144,7 +142,6 @@ async def update_event(
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
-@router.delete("/{event_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_event(
     request: Request,
     event_id: uuid.UUID,
@@ -176,7 +173,6 @@ async def delete_event(
 
 
 @router.get("/{event_id}/recordings", response_model=list[AudioRecordingResponse])
-@router.get("/{event_id}/recordings/", response_model=list[AudioRecordingResponse])
 async def get_event_recordings(
     request: Request,
     event_id: uuid.UUID,
@@ -250,9 +246,6 @@ async def stream_recording_audio(
 @router.post(
     "/{event_id}/recordings", response_model=AudioRecordingResponse, status_code=status.HTTP_201_CREATED
 )
-@router.post(
-    "/{event_id}/recordings/", response_model=AudioRecordingResponse, status_code=status.HTTP_201_CREATED
-)
 async def add_recording(
     request: Request,
     event_id: uuid.UUID,
@@ -278,9 +271,6 @@ async def add_recording(
 
 @router.post(
     "/recordings/{recording_id}/transcribe", response_model=AudioRecordingResponse
-)
-@router.post(
-    "/recordings/{recording_id}/transcribe/", response_model=AudioRecordingResponse
 )
 async def retry_transcribe(
     request: Request,
@@ -339,8 +329,7 @@ async def retry_transcribe(
     return update_response.data[0]
 
 
-@router.post("/{event_id}/complete")
-@router.post("/{event_id}/complete/", status_code=status.HTTP_200_OK)
+@router.post("/{event_id}/complete", status_code=status.HTTP_200_OK)
 async def complete_event(
     request: Request,
     event_id: uuid.UUID,

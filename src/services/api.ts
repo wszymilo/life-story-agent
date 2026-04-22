@@ -10,12 +10,16 @@ export async function getAuthHeader(): Promise<HeadersInit> {
   return headers
 }
 
+function normalizeUrl(url: string): string {
+  return url.replace(/\/+$/, '')
+}
+
 export async function fetchApi(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
   const authHeaders = await getAuthHeader()
-  return fetch(url, {
+  return fetch(normalizeUrl(url), {
     ...options,
     headers: { ...authHeaders, ...options.headers },
     credentials: 'include',

@@ -34,7 +34,7 @@ export interface AudioRecording {
 }
 
 export async function createEvent(data: CreateEventInput): Promise<EventData> {
-  return fetchJson<EventData>('/api/events/', {
+  return fetchJson<EventData>('/api/events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -42,11 +42,11 @@ export async function createEvent(data: CreateEventInput): Promise<EventData> {
 }
 
 export async function getEvent(eventId: string): Promise<EventData> {
-  return fetchJson<EventData>(`/api/events/${eventId}/`)
+  return fetchJson<EventData>(`/api/events/${eventId}`)
 }
 
 export async function updateEvent(eventId: string, data: Partial<EventData>): Promise<EventData> {
-  return fetchJson<EventData>(`/api/events/${eventId}/`, {
+  return fetchJson<EventData>(`/api/events/${eventId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -62,11 +62,11 @@ export async function streamAudio(eventId: string, recordingId: string): Promise
 }
 
 export async function listEvents(): Promise<EventData[]> {
-  return fetchJson<EventData[]>('/api/events/')
+  return fetchJson<EventData[]>('/api/events')
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {
-  const response = await fetchApi(`/api/events/${eventId}/`, { method: 'DELETE' })
+  const response = await fetchApi(`/api/events/${eventId}`, { method: 'DELETE' })
   if (!response.ok) {
     throw new Error('Failed to delete event')
   }
@@ -85,7 +85,7 @@ export async function addRecording(
     formData.append('duration_seconds', String(durationSeconds))
   }
 
-  const response = await fetchApi(`/api/events/${eventId}/recordings/`, {
+  const response = await fetchApi(`/api/events/${eventId}/recordings`, {
     method: 'POST',
     body: formData,
   })
@@ -101,7 +101,7 @@ export async function addRecording(
 }
 
 export async function retryTranscribe(recordingId: string): Promise<AudioRecording> {
-  return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcribe/`, {
+  return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcribe`, {
     method: 'POST',
   })
 }
@@ -114,7 +114,7 @@ export interface CompletedEvent {
 }
 
 export async function completeEvent(eventId: string): Promise<CompletedEvent> {
-  return fetchJson<CompletedEvent>(`/api/events/${eventId}/complete/`, {
+  return fetchJson<CompletedEvent>(`/api/events/${eventId}/complete`, {
     method: 'POST',
   })
 }

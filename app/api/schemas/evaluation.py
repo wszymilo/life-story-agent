@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class EvaluationScores(BaseModel):
+    """Structured output from LLM-as-judge evaluation."""
+
+    factual_accuracy: int = Field(ge=1, le=5)
+    coherence: int = Field(ge=1, le=5)
+    completeness: int = Field(ge=1, le=5)
+    overall_score: int = Field(ge=1, le=5)
+    explanation: str = Field(default="")
 
 
 class EvaluationResultCreate(BaseModel):

@@ -39,7 +39,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockEvent)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/',
+        '/api/events',
         expect.objectContaining({ method: 'POST' })
       )
     })
@@ -60,7 +60,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockEvent)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/',
+        '/api/events/evt-1',
         expect.any(Object)
       )
     })
@@ -113,7 +113,7 @@ describe('events service', () => {
       await deleteEvent('evt-1')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/',
+        '/api/events/evt-1',
         expect.objectContaining({ method: 'DELETE' })
       )
     })
@@ -144,7 +144,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockRecording)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/recordings/',
+        '/api/events/evt-1/recordings',
         expect.objectContaining({ method: 'POST' })
       )
     })
