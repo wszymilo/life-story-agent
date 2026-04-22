@@ -1,3 +1,5 @@
+import { fetchJson } from './api'
+
 export interface DashboardStats {
   total_evaluations: number;
   avg_factual_accuracy: number | null;
@@ -22,18 +24,6 @@ export interface EvaluationResult {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const response = await fetch('/api/evaluations/dashboard', {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    if (response.status === 403) {
-      throw new Error('Admin access only');
-    }
-    throw new Error('Failed to fetch dashboard');
-  }
-  
-  return response.json();
+  const data = await fetchJson<DashboardStats>('/api/evaluations/dashboard')
+  return data
 }

@@ -14,3 +14,11 @@ class SummaryWithTitle(BaseModel):
 
     time_anchor_date: Optional[date] = None
     """Extracted primary date from the story (YYYY-MM-DD format)"""
+
+
+class GroundingValidation(BaseModel):
+    """Structured output from the grounding reviewer step."""
+
+    is_grounded: bool
+    reason: str = ""
+    """Explanation if not grounded; empty if grounded"""

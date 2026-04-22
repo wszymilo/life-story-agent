@@ -21,3 +21,12 @@ export async function fetchApi(
     credentials: 'include',
   })
 }
+
+export async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetchApi(url, options)
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.detail || `Request failed: ${response.status}`)
+  }
+  return response.json()
+}

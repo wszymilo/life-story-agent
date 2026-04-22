@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { completeEvent, CompletedEvent } from '../services/events'
 import { generateTTS } from '../services/interview'
 import { TopBar } from './TopBar'
 import { extractErrorMessage } from '../lib/errors'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
 
 type SummaryState = 'loading' | 'ready' | 'playing' | 'error'
 
@@ -12,9 +13,8 @@ export function SummaryScreen() {
   const navigate = useNavigate()
   const [state, setState] = useState<SummaryState>('loading')
   const [event, setEvent] = useState<CompletedEvent | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
   const [error, setError] = useState<string>('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const { play, isPlaying } = useAudioPlayer()
 
   const loadEvent = async () => {
     if (!eventId) { return }
@@ -56,28 +56,18 @@ export function SummaryScreen() {
     if (!event?.summary) return
 
     try {
-      setIsPlaying(true)
       setState('playing')
-
       const { audio_url } = await generateTTS(event.summary)
-
-      const audio = new Audio(audio_url)
-      audioRef.current = audio
-
-      audio.onended = () => {
-        setIsPlaying(false)
-        setState('ready')
-      }
-
-      audio.onerror = () => {
-        setIsPlaying(false)
-        setState('ready')
-        setError('Playback failed')
-      }
-
-      await audio.play()
+      await play(audio_url, {
+        onEnded: () => {
+          setState('ready')
+        },
+        onError: () => {
+          setState('ready')
+          setError('Playback failed')
+        },
+      })
     } catch (err) {
-      setIsPlaying(false)
       setState('ready')
       setError(extractErrorMessage(err, 'Failed to generate audio'))
     }

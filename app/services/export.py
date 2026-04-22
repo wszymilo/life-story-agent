@@ -2,10 +2,10 @@ import io
 import zipfile
 from typing import Any
 
-import structlog
-from db.client import create_storage_client
+from api.logging_config import get_logger
+from services.storage import StorageService
 
-logger = structlog.get_logger()
+logger = get_logger()
 
 
 async def generate_event_export(
@@ -74,26 +74,21 @@ async def _add_recording_to_zip(
         directory: Directory path in ZIP
         base_name: Base filename without extension
     """
-    storage_client = create_storage_client()
+    storage = StorageService()
 
     audio_url = recording.get("audio_url")
     transcript = recording.get("transcript")
 
     if audio_url:
         try:
-            path_parts = audio_url.split("/audio-recordings/")
-            if len(path_parts) >= 2:
-                file_path = path_parts[1]
-                audio_data = storage_client.storage.from_("audio-recordings").download(
-                    file_path
-                )
-                zf.writestr(f"{directory}/{base_name}.webm", audio_data)
-                logger.info(
-                    "export_audio_added",
-                    event_id=recording.get("event_id"),
-                    recording_id=recording.get("id"),
-                    filename=f"{base_name}.webm",
-                )
+            audio_data = await storage.download(audio_url)
+            zf.writestr(f"{directory}/{base_name}.webm", audio_data)
+            logger.info(
+                "export_audio_added",
+                event_id=recording.get("event_id"),
+                recording_id=recording.get("id"),
+                filename=f"{base_name}.webm",
+            )
         except Exception as e:
             logger.warning(
                 "export_audio_failed",

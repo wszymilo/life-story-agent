@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEvent, deleteEvent, exportEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -12,10 +13,10 @@ export function EventDetailScreen() {
   const [error, setError] = useState<string>('')
   const [deleting, setDeleting] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [playingId, setPlayingId] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showRecordAgainDialog, setShowRecordAgainDialog] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null)
+  const { play, pause } = useAudioPlayer()
 
   useEffect(() => {
     if (!eventId) return
@@ -95,27 +96,29 @@ export function EventDetailScreen() {
   const playAudio = async (recording: AudioRecording) => {
     if (!event?.id) return
 
-    if (playingId === recording.id) {
-      audioRef.current?.pause()
-      setPlayingId(null)
+    if (playingRecordingId === recording.id) {
+      pause()
+      setPlayingRecordingId(null)
       return
-    }
-
-    if (audioRef.current) {
-      audioRef.current.pause()
     }
 
     try {
       const blob = await streamAudio(event.id, recording.id)
       const url = URL.createObjectURL(blob)
-      audioRef.current = new Audio(url)
-      audioRef.current.onended = () => {
-        setPlayingId(null)
-        URL.revokeObjectURL(url)
-      }
-      audioRef.current.play()
-      setPlayingId(recording.id)
+      setPlayingRecordingId(recording.id)
+      await play(url, {
+        onEnded: () => {
+          setPlayingRecordingId(null)
+          URL.revokeObjectURL(url)
+        },
+        onError: () => {
+          setPlayingRecordingId(null)
+          URL.revokeObjectURL(url)
+          alert('Failed to play audio')
+        },
+      })
     } catch (err) {
+      setPlayingRecordingId(null)
       console.error('Failed to play audio:', err)
       alert('Failed to play audio')
     }
@@ -261,15 +264,15 @@ export function EventDetailScreen() {
                     <button
                       onClick={() => playAudio(recording)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        playingId === recording.id
+                        playingRecordingId === recording.id
                           ? 'bg-red-600 text-white'
                           : 'bg-blue-600 text-white'
                       }`}
                       aria-label={
-                        playingId === recording.id ? 'Pause' : 'Play recording'
+                        playingRecordingId === recording.id ? 'Pause' : 'Play recording'
                       }
                     >
-                      {playingId === recording.id ? (
+                      {playingRecordingId === recording.id ? (
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                         </svg>

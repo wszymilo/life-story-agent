@@ -26,6 +26,22 @@ class MockCompletion:
         self.choices = [MockChoice(content)]
 
 
+class MockParsedResult:
+    def __init__(self, is_grounded: bool, reason: str = ""):
+        self.is_grounded = is_grounded
+        self.reason = reason
+
+
+class MockChoiceParsed:
+    def __init__(self, is_grounded: bool, reason: str = ""):
+        self.message = MagicMock(parsed=MockParsedResult(is_grounded, reason))
+
+
+class MockCompletionParsed:
+    def __init__(self, is_grounded: bool, reason: str = ""):
+        self.choices = [MockChoiceParsed(is_grounded, reason)]
+
+
 class TestGenerateSummaryUnit:
     """Unit tests for summary generator - testing each function separately."""
 
@@ -50,8 +66,8 @@ class TestGenerateSummaryUnit:
     async def test_validate_grounding_grounded(self):
         """Test reviewer approves grounded summary."""
         mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(
-            return_value=MockCompletion('{"is_grounded": true, "reason": "OK"}')
+        mock_client.beta.chat.completions.parse = AsyncMock(
+            return_value=MockCompletionParsed(True, "")
         )
 
         is_grounded, reason = await _validate_grounding(
@@ -62,13 +78,14 @@ class TestGenerateSummaryUnit:
         )
 
         assert is_grounded is True
+        mock_client.beta.chat.completions.parse.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_validate_grounding_not_grounded(self):
         """Test reviewer rejects ungrounded summary."""
         mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(
-            return_value=MockCompletion('{"is_grounded": false, "reason": "Contains facts not in source"}')
+        mock_client.beta.chat.completions.parse = AsyncMock(
+            return_value=MockCompletionParsed(False, "Contains facts not in source")
         )
 
         is_grounded, reason = await _validate_grounding(
@@ -124,14 +141,15 @@ class TestGenerateSummaryIntegration:
             messages = args[0] if args else kwargs.get("messages", [])
             prompt = messages[0].get("content", "") if messages else ""
 
-            if "fact-checker" in prompt.lower() or "validate" in prompt.lower():
-                return MockCompletion('{"is_grounded": true, "reason": "OK"}')
-            elif "title" in prompt.lower():
+            if "title" in prompt.lower():
                 return MockCompletion("My Test Title")
             else:
                 return MockCompletion("This is my test summary about growing up.")
 
         mock_client.chat.completions.create = AsyncMock(side_effect=mock_create)
+        mock_client.beta.chat.completions.parse = AsyncMock(
+            return_value=MockCompletionParsed(True, "")
+        )
         summary_generator.AsyncOpenAI = lambda api_key: mock_client
 
         try:
@@ -156,24 +174,26 @@ class TestGenerateSummaryIntegration:
         original_client = summary_generator.AsyncOpenAI
 
         mock_client = AsyncMock()
-        call_count = 0
+        parse_call_count = 0
 
         async def mock_create(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
             messages = args[0] if args else kwargs.get("messages", [])
             prompt = messages[0].get("content", "") if messages else ""
 
-            if "fact-checker" in prompt.lower() or "validate" in prompt.lower():
-                if call_count <= 2:
-                    return MockCompletion('{"is_grounded": false, "reason": "Not grounded"}')
-                return MockCompletion('{"is_grounded": true, "reason": "OK"}')
-            elif "title" in prompt.lower():
+            if "title" in prompt.lower():
                 return MockCompletion("Test Title")
             else:
                 return MockCompletion("Test summary content")
 
+        async def mock_parse(*args, **kwargs):
+            nonlocal parse_call_count
+            parse_call_count += 1
+            if parse_call_count <= 1:
+                return MockCompletionParsed(False, "Not grounded")
+            return MockCompletionParsed(True, "")
+
         mock_client.chat.completions.create = AsyncMock(side_effect=mock_create)
+        mock_client.beta.chat.completions.parse = AsyncMock(side_effect=mock_parse)
         summary_generator.AsyncOpenAI = lambda api_key: mock_client
 
         try:

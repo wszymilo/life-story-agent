@@ -1,4 +1,3 @@
-import io
 import uuid
 from typing import Optional
 
@@ -13,19 +12,19 @@ from api.schemas.event import (
 )
 from api.utils import (
     get_event_for_user,
-    get_next_sequence_order,
-    get_transcripts_from_recordings,
     get_user_language,
     require_data,
     serialize_update_data,
 )
 from config import get_settings
-from db.client import create_storage_client, get_supabase_client
+from db.client import get_supabase_client
+from services.storage import StorageService
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from services.event_completion import complete_event_session
 from services.export import _sanitize_filename, generate_event_export
 from services.meta_story_generator import generate_meta_story
-from services.summary_generator import generate_summary as generate_event_summary
-from services.transcription import transcribe_audio_data, transcribe_audio_url
+from services.recording_orchestrator import add_recording_to_event
+from services.transcription import transcribe_audio_url
 
 router = APIRouter(prefix="/events", tags=["events"])
 logger = get_logger()
@@ -163,15 +162,13 @@ async def delete_event(
     )
     recordings = recordings_response.data if recordings_response.data else []
 
-    for recording in recordings:
-        if recording.get("audio_url"):
-            try:
-                path_parts = recording["audio_url"].split("/audio-recordings/")
-                if len(path_parts) > 1:
-                    file_path = path_parts[1]
-                    supabase.storage.from_("audio-recordings").remove([file_path])
-            except Exception:
-                pass
+    audio_urls = [r["audio_url"] for r in recordings if r.get("audio_url")]
+    if audio_urls:
+        try:
+            storage = StorageService()
+            await storage.remove_many(audio_urls)
+        except Exception:
+            pass
 
     supabase.table("audio_recordings").delete().eq("event_id", event_id_str).execute()
     supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).execute()
@@ -231,17 +228,8 @@ async def stream_recording_audio(
         )
 
     try:
-        path_parts = audio_url.split("/audio-recordings/")
-        if len(path_parts) < 2:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid audio URL",
-            )
-        file_path = path_parts[1]
-
-        storage_client = create_storage_client()
-        audio_data = storage_client.storage.from_("audio-recordings").download(file_path)
-
+        storage = StorageService()
+        audio_data = await storage.download(audio_url)
     except HTTPException:
         raise
     except Exception as e:
@@ -278,113 +266,16 @@ async def add_recording(
     """Add a recording to an event. Accepts audio file via multipart/form-data."""
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
-    if not file.content_type or not file.content_type.startswith("audio/"):
-        logger.warning("recording_invalid_content_type", content_type=file.content_type)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid audio file type",
-        )
-
     supabase = await get_supabase_client()
-
-    storage_client = create_storage_client(timeout=120)
-
-    audio_bytes = await file.read()
-    audio_size = len(audio_bytes)
-
-    if audio_size > MAX_FILE_SIZE_BYTES:
-        logger.warning(
-            "recording_file_too_large",
-            size_mb=round(audio_size / (1024 * 1024), 2),
-            max_mb=MAX_FILE_SIZE_MB,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB",
-        )
-
-    audio_file = io.BytesIO(audio_bytes)
-
-    file_path = f"{current_user.id}/{event_id}/{uuid.uuid4()}.webm"
-
-    try:
-        storage_client.storage.from_("audio-recordings").upload(
-            file_path,
-            audio_file.getvalue(),
-            {"content-type": "audio/webm"},
-        )
-        logger.info("recording_uploaded", file_path=file_path, size_bytes=audio_size)
-    except Exception as e:
-        logger.error("recording_upload_failed", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload audio: {str(e)}",
-        )
-
-    public_url = storage_client.storage.from_("audio-recordings").get_public_url(file_path)
-
-    # Use service key client to download audio directly for transcription (bucket is private)
-    service_supabase = create_storage_client(timeout=120)
-
-    # Get user's preferred language for transcription
-    user_language = await get_user_language(supabase, str(current_user.id))
-
-    transcript = None
-    transcription_error = None
-    try:
-        audio_data = service_supabase.storage.from_("audio-recordings").download(file_path)
-        transcript = await transcribe_audio_data(audio_data, language=user_language)
-    except Exception as e:
-        transcript = None
-        transcription_error = str(e)
-
-    sequence_order = get_next_sequence_order(supabase, "audio_recordings", str(event_id))
-
-    recording_data = {
-        "event_id": str(event_id),
-        "audio_url": public_url,
-        "transcript": transcript,
-        "sequence_order": sequence_order,
-        "recording_type": recording_type,
-        "duration_seconds": duration_seconds,
-    }
-
-    response = supabase.table("audio_recordings").insert(recording_data).execute()
-    require_data(response, "Failed to create recording")
-
-    # If this is a follow-up response, mark the question as answered
-    if recording_type == "follow_up_response":
-        current_question = (
-            supabase.table("follow_up_questions")
-            .select("id")
-            .eq("event_id", str(event_id))
-            .is_("audio_url", "null")
-            .eq("was_answered", False)
-            .order("sequence_order", desc=False)
-            .limit(1)
-            .execute()
-        )
-        if current_question.data:
-            supabase.table("follow_up_questions").update(
-                {"was_answered": True, "audio_url": public_url}
-            ).eq("id", current_question.data[0]["id"]).execute()
-
-    if transcription_error:
-        recording_with_detail = {
-            "id": response.data[0]["id"],
-            "event_id": response.data[0]["event_id"],
-            "audio_url": response.data[0]["audio_url"],
-            "transcript": None,
-            "recording_type": response.data[0]["recording_type"],
-            "sequence_order": response.data[0]["sequence_order"],
-            "duration_seconds": response.data[0].get("duration_seconds"),
-            "created_at": response.data[0]["created_at"],
-            "detail": "Transcription failed. Your recording is saved."
-        }
-        return recording_with_detail
-
-    logger.info("add_recording_completed", event_id=str(event_id), recording_id=response.data[0]["id"], recording_type=recording_type)
-    return response.data[0]
+    result = await add_recording_to_event(
+        supabase=supabase,
+        event_id=str(event_id),
+        user_id=str(current_user.id),
+        file=file,
+        recording_type=recording_type,
+        duration_seconds=duration_seconds,
+    )
+    return result
 
 
 @router.post(
@@ -463,97 +354,12 @@ async def complete_event(
     updates the event with summary and title, sets status to complete.
     """
     supabase = await get_supabase_client()
-
-    # Verify ownership
-    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
-
-    # Check if already completed
-    if event.get("status") == "complete":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event is already completed",
-        )
-
-    # Get all transcripts
-    recordings_response = (
-        supabase.table("audio_recordings")
-        .select("transcript", "recording_type")
-        .eq("event_id", str(event_id))
-        .execute()
+    result = await complete_event_session(
+        supabase=supabase,
+        event_id=str(event_id),
+        user_id=str(current_user.id),
     )
-
-    transcripts = get_transcripts_from_recordings(recordings_response.data if recordings_response.data else [])
-
-    # Get Q&A from follow-up questions
-    questions_response = (
-        supabase.table("follow_up_questions")
-        .select("question_text", "was_answered", "audio_url")
-        .eq("event_id", str(event_id))
-        .execute()
-    )
-
-    questions_and_answers = []
-    if questions_response.data:
-        for q in questions_response.data:
-            if q.get("was_answered") and q.get("audio_url"):
-                # Get the answer transcript if available
-                answer_recording = (
-                    supabase.table("audio_recordings")
-                    .select("transcript")
-                    .eq("audio_url", q["audio_url"])
-                    .limit(1)
-                    .execute()
-                )
-                answer_text = None
-                if answer_recording.data and answer_recording.data[0].get("transcript"):
-                    answer_text = answer_recording.data[0]["transcript"]
-
-                questions_and_answers.append({
-                    "question": q.get("question_text", ""),
-                    "answer": answer_text or "",
-                })
-
-    # Generate summary
-    # Get user's preferred language
-    user_language = await get_user_language(supabase, str(current_user.id))
-
-    try:
-        summary_result = await generate_event_summary(
-            transcripts=transcripts,
-            questions_and_answers=questions_and_answers,
-            language=user_language
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Summary generation failed: {str(e)}",
-        )
-
-    # Update event with summary, title, and time anchor date
-    update_data = {
-        "summary": summary_result.summary,
-        "title": summary_result.title,
-        "status": "complete",
-    }
-    if summary_result.time_anchor_date:
-        update_data["time_anchor_date"] = summary_result.time_anchor_date.isoformat()
-    serialize_update_data(update_data)
-
-    updated_event = (
-        supabase.table("events")
-        .update(update_data)
-        .eq("id", str(event_id))
-        .execute()
-    )
-
-    require_data(updated_event, "Failed to update event")
-
-    return {
-        "id": str(event_id),
-        "title": summary_result.title,
-        "summary": summary_result.summary,
-        "status": "complete",
-    }
+    return result
 
 
 @router.get("/{event_id}/export")

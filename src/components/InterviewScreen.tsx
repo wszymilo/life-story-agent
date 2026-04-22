@@ -12,6 +12,7 @@ import {
 } from '../services/interview'
 import { addRecording } from '../services/events'
 import { extractErrorMessage } from '../lib/errors'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
 
 type InterviewState = 'loading' | 'analyzing' | 'ready' | 'playing' | 'recording' | 'complete' | 'error'
 
@@ -24,8 +25,8 @@ export function InterviewScreen() {
   const [event, setEvent] = useState<EventWithQuestions | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
   const [error, setError] = useState<string>('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const isLoadingRef = useRef(false)
+  const { play } = useAudioPlayer()
 
   useEffect(() => {
     if (!eventId || isLoadingRef.current) return
@@ -70,30 +71,17 @@ export function InterviewScreen() {
     try {
       setState('playing')
       const result = await generateTTS(currentQuestion.question_text)
-
-      if (audioRef.current) {
-        audioRef.current.src = result.audio_url
-        
-        audioRef.current.onloadeddata = () => {
-          console.log('Audio loaded, duration:', audioRef.current?.duration)
-          audioRef.current?.play().catch(err => {
-            console.error('Play error:', err)
-            setError('Failed to play audio')
-            setState('ready')
-          })
-        }
-        
-        audioRef.current.onended = () => {
+      await play(result.audio_url, {
+        onEnded: () => {
           console.log('Audio playback ended')
           setState('ready')
-        }
-        
-        audioRef.current.onerror = (e) => {
-          console.error('Audio error event:', e)
+        },
+        onError: () => {
+          console.error('Audio playback error')
           setError('Failed to play audio')
           setState('ready')
-        }
-      }
+        },
+      })
     } catch (err) {
       console.error('TTS generation error:', err)
       setError(extractErrorMessage(err, 'Failed to play audio'))
@@ -233,12 +221,6 @@ export function InterviewScreen() {
           {currentQuestion && (
             <div className="mb-6">
               <p className="text-lg text-gray-800 mb-4">{currentQuestion.question_text}</p>
-
-              <audio
-                ref={audioRef}
-                onEnded={() => setState('ready')}
-                className="hidden"
-              />
 
               <div className="flex gap-4 mb-4">
                 <button

@@ -68,7 +68,7 @@ describe('events service', () => {
     it('throws when not found', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
 
-      await expect(getEvent('evt-1')).rejects.toThrow('Failed to fetch event')
+      await expect(getEvent('evt-1')).rejects.toThrow('Not found')
     })
   })
 
@@ -85,7 +85,7 @@ describe('events service', () => {
     it('throws on validation error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Invalid', 422))
 
-      await expect(updateEvent('evt-1', { title: '' })).rejects.toThrow('Failed to update event')
+      await expect(updateEvent('evt-1', { title: '' })).rejects.toThrow('Invalid')
     })
   })
 
@@ -102,7 +102,7 @@ describe('events service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Server error', 500))
 
-      await expect(listEvents()).rejects.toThrow('Failed to list events')
+      await expect(listEvents()).rejects.toThrow('Server error')
     })
   })
 

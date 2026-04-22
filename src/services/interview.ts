@@ -1,4 +1,4 @@
-import { fetchApi } from './api'
+import { fetchApi, fetchJson } from './api'
 
 export interface FollowUpQuestion {
   id: string
@@ -35,45 +35,26 @@ export interface TranscriptAnalysis {
 }
 
 export async function analyzeEvent(eventId: string): Promise<TranscriptAnalysis> {
-  const response = await fetchApi(`/api/events/${eventId}/analyze`, {
+  return fetchJson<TranscriptAnalysis>(`/api/events/${eventId}/analyze`, {
     method: 'POST',
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to analyze event')
-  }
-  return response.json()
 }
 
 export async function generateFollowUp(eventId: string): Promise<FollowUpQuestion> {
-  const response = await fetchApi(`/api/events/${eventId}/follow-up`, {
+  return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/follow-up`, {
     method: 'POST',
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to generate follow-up')
-  }
-  return response.json()
 }
 
-export async function skipFollowUp(eventId: string, questionId: string): Promise<void> {
-  const response = await fetchApi(
+export async function skipFollowUp(eventId: string, questionId: string): Promise<{ status: string; question_id: string }> {
+  return fetchJson<{ status: string; question_id: string }>(
     `/api/events/${eventId}/follow-up/${questionId}/skip`,
     { method: 'POST' }
   )
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to skip question')
-  }
 }
 
 export async function getEventWithQuestions(eventId: string): Promise<EventWithQuestions> {
-  const response = await fetchApi(`/api/events/${eventId}`)
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to fetch event')
-  }
-  return response.json()
+  return fetchJson<EventWithQuestions>(`/api/events/${eventId}`)
 }
 
 export async function generateTTS(
@@ -87,7 +68,7 @@ export async function generateTTS(
     body: JSON.stringify({ text, voice, model }),
   })
   if (!response.ok) {
-    const error = await response.json()
+    const error = await response.json().catch(() => ({}))
     throw new Error(error.detail || 'Failed to generate TTS')
   }
 
