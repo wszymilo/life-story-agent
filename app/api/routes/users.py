@@ -1,9 +1,9 @@
 import uuid
 from typing import Any
 
-from pydantic import BaseModel, Field
 from api.deps import CurrentUser, get_current_user
 from api.schemas.user import (
+    LanguageUpdate,
     RelativeCreate,
     RelativeResponse,
     UserResponse,
@@ -12,10 +12,6 @@ from api.schemas.user import (
 from api.utils import require_data, serialize_update_data
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-
-
-class LanguageUpdate(BaseModel):
-    preferred_language: str = Field(min_length=2, max_length=2)
 
 
 router = APIRouter(prefix="/users", tags=["users"])

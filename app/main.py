@@ -42,20 +42,28 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/health/ready")
-async def health_ready_check():
-    """Readiness check including database connectivity."""
+async def _check_db_health():
+    """Shared helper to verify database connectivity."""
     supabase = await get_supabase_client()
     try:
         result = supabase.table("users").select("count", count="exact").execute()
+        return {"status": "connected", "user_count": result.count}
+    except Exception as e:
+        logger.error("db_check_failed", error=str(e))
+        return {"status": "error", "error": str(e)}
+
+
+@app.get("/health/ready")
+async def health_ready_check():
+    """Readiness check including database connectivity."""
+    result = await _check_db_health()
+    if result["status"] == "connected":
         return {
             "status": "ready",
             "database": "connected",
-            "user_count": result.count,
+            "user_count": result["user_count"],
         }
-    except Exception as e:
-        logger.error("health_check_failed", error=str(e))
-        return {"status": "not_ready", "database": "error", "error": str(e)}
+    return {"status": "not_ready", "database": "error", "error": result.get("error")}
 
 
 @app.get("/")
@@ -71,16 +79,7 @@ async def root():
 @app.get("/db-check")
 async def db_check():
     """Verify database connectivity."""
-    supabase = await get_supabase_client()
-    try:
-        result = supabase.table("users").select("count", count="exact").execute()
-        return {
-            "status": "connected",
-            "user_count": result.count,
-        }
-    except Exception as e:
-        logger.error("db_check_failed", error=str(e))
-        return {"status": "error", "error": str(e)}
+    return await _check_db_health()
 
 
 @app.get("/auth/me")

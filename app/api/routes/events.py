@@ -9,6 +9,7 @@ from api.schemas.event import (
     EventResponse,
     EventUpdate,
     EventWithRecordingsResponse,
+    MetaGenerateRequest,
 )
 from api.utils import (
     get_event_for_user,
@@ -20,6 +21,7 @@ from config import get_settings
 from db.client import get_supabase_client
 from services.storage import StorageService
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response
 from services.event_completion import complete_event_session
 from services.export import _sanitize_filename, generate_event_export
 from services.meta_story_generator import generate_meta_story
@@ -53,7 +55,6 @@ async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 async def create_event(
     request: Request,
     event: EventCreate,
@@ -80,7 +81,6 @@ async def create_event(
 
 
 @router.get("", response_model=list[EventResponse])
-@router.get("/", response_model=list[EventResponse])
 async def list_events(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
@@ -237,8 +237,6 @@ async def stream_recording_audio(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to load audio: {str(e)}",
         )
-
-    from fastapi.responses import Response
 
     return Response(
         content=audio_data,
@@ -410,8 +408,6 @@ async def export_event(
             detail=f"Failed to generate export: {str(e)}",
         )
 
-    from fastapi.responses import Response
-
     title = event.get("title") or "untitled"
     safe_title = _sanitize_filename(title)
     filename = f"{safe_title}.zip"
@@ -427,24 +423,10 @@ async def export_event(
 
 @router.post("/meta-generate", status_code=status.HTTP_201_CREATED)
 async def generate_meta_story_endpoint(
-    request: Request,
+    req: MetaGenerateRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Generate a meta-story from multiple selected events."""
-    from pydantic import BaseModel
-
-    class MetaGenerateRequest(BaseModel):
-        event_ids: list[str]
-
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON body",
-        )
-
-    req = MetaGenerateRequest(**body)
     settings = get_settings()
 
     if len(req.event_ids) < 2:

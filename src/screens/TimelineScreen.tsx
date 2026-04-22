@@ -5,10 +5,13 @@ import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
 import { listEvents, generateMetaStory, EventData } from '../services/events'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
 import { LANGUAGE_OPTIONS } from '../services/constants'
+import { useEventSelection } from '../hooks/useEventSelection'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
@@ -16,12 +19,17 @@ export function TimelineScreen() {
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
-  const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
   const [changingLanguage, setChangingLanguage] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const {
+    multiSelectMode,
+    selectedIds,
+    toggleSelection,
+    clearSelection,
+    enterSelectionMode,
+  } = useEventSelection()
 
   const handleLanguageChange = async (lang: string) => {
     if (changingLanguage || !profile) return
@@ -52,13 +60,7 @@ export function TimelineScreen() {
   }
 
   const handleSelectToggle = (eventId: string) => {
-    const newSelected = new Set(selectedIds)
-    if (newSelected.has(eventId)) {
-      newSelected.delete(eventId)
-    } else {
-      newSelected.add(eventId)
-    }
-    setSelectedIds(newSelected)
+    toggleSelection(eventId)
   }
 
   const handleCombineStories = async () => {
@@ -105,30 +107,11 @@ export function TimelineScreen() {
   }, [])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading memories...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading memories..." />
   }
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorFallback message={error} onRetry={handleRetry} />
   }
 
   const completedCount = events.filter(e => e.status === 'complete').length
@@ -141,12 +124,12 @@ export function TimelineScreen() {
         title=""
         secondary={
           multiSelectMode
-            ? { label: 'Done', onClick: () => { setMultiSelectMode(false); setSelectedIds(new Set()) } }
+            ? { label: 'Done', onClick: clearSelection }
             : { label: 'Logout', onClick: handleLogout }
         }
         primary={
           completedCount >= 2 && !multiSelectMode
-            ? { label: 'Select', onClick: () => setMultiSelectMode(true) }
+            ? { label: 'Select', onClick: enterSelectionMode }
             : undefined
         }
         tertiaryLeft={

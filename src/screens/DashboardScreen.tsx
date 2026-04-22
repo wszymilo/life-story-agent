@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDashboardStats, DashboardStats } from '../services/evaluation';
+import { LoadingScreen } from '../components/LoadingScreen';
+import { ErrorFallback } from '../components/ErrorFallback';
 
 export function DashboardScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -14,19 +16,11 @@ export function DashboardScreen() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Loading dashboard...</div>
-      </div>
-    );
+    return <LoadingScreen message="Loading dashboard..." />;
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-red-600">Error: {error}</div>
-      </div>
-    );
+    return <ErrorFallback message={error} />;
   }
 
   if (!stats) {

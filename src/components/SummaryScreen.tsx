@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { completeEvent, CompletedEvent } from '../services/events'
 import { generateTTS } from '../services/interview'
 import { TopBar } from './TopBar'
+import { LoadingScreen } from './LoadingScreen'
+import { ErrorFallback } from './ErrorFallback'
 import { extractErrorMessage } from '../lib/errors'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
 
@@ -78,36 +80,11 @@ export function SummaryScreen() {
   }
 
   if (state === 'loading') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <TopBar title="Your Story" />
-        <div className="flex items-center justify-center p-4">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg">Generating your story summary...</p>
-          </div>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Generating your story summary..." />
   }
 
   if (state === 'error') {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <TopBar title="Error" />
-        <div className="flex items-center justify-center p-4">
-          <div className="text-center max-w-md">
-            <p className="text-red-600 text-lg mb-4">{error}</p>
-            <button
-              onClick={loadEvent}
-              className="px-6 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium hover:bg-blue-700"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+    return <ErrorFallback message={error} onRetry={loadEvent} />
   }
 
   return (

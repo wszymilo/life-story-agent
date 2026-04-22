@@ -64,3 +64,7 @@ class AudioRecordingResponse(BaseModel):
 
 class EventWithRecordingsResponse(EventResponse):
     recordings: list[AudioRecordingResponse] = []
+
+
+class MetaGenerateRequest(BaseModel):
+    event_ids: list[str]

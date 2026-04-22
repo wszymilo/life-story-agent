@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEvent, deleteEvent, exportEvent, streamAudio, EventData, AudioRecording } from '../services/events'
+import { getEvent, deleteEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import { useEventExport } from '../hooks/useEventExport'
+import { formatDate, formatDuration } from '../lib/date'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
@@ -12,11 +16,11 @@ export function EventDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [deleting, setDeleting] = useState(false)
-  const [exporting, setExporting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showRecordAgainDialog, setShowRecordAgainDialog] = useState(false)
   const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null)
   const { play, pause } = useAudioPlayer()
+  const { exporting, downloadExport } = useEventExport()
 
   useEffect(() => {
     if (!eventId) return
@@ -72,25 +76,9 @@ export function EventDetailScreen() {
     }
   }
 
-  const handleExport = async () => {
+  const handleExport = () => {
     if (!event?.id) return
-
-    setExporting(true)
-    try {
-      const { blob, filename } = await exportEvent(event.id)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to export')
-    } finally {
-      setExporting(false)
-    }
+    downloadExport(event.id)
   }
 
   const playAudio = async (recording: AudioRecording) => {
@@ -124,51 +112,19 @@ export function EventDetailScreen() {
     }
   }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null
-    try {
-      const date = new Date(dateStr)
-      return date.toLocaleDateString('pl-PL', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    } catch {
-      return dateStr
-    }
-  }
 
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return null
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Event not found'}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Back to Timeline
-          </button>
-        </div>
-      </div>
+      <ErrorFallback
+        message={error || 'Event not found'}
+        onRetry={() => navigate('/')}
+        retryLabel="Back to Timeline"
+      />
     )
   }
 

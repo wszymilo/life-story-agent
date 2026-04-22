@@ -2,10 +2,13 @@
 
 import asyncio
 import hashlib
+import json
 import random
 
 from api.logging_config import get_logger
 from config import get_settings
+from db.client import get_supabase_client
+from openai import AsyncOpenAI
 
 settings = get_settings()
 logger = get_logger()
@@ -23,8 +26,6 @@ async def evaluate_output(
     if not settings.openai_api_key:
         logger.warning("eval_skipped_no_api_key")
         return None
-
-    from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
@@ -51,9 +52,8 @@ Respond with ONLY a JSON object:
         )
 
         content = response.choices[0].message.content or ""
-        
+
         # Parse JSON from response
-        import json
         result = {}
         try:
             # Extract JSON from potential markdown code block
@@ -113,8 +113,6 @@ async def _evaluate_and_store(
     summary_text: str,
 ) -> None:
     """Internal: evaluate and store result in database."""
-    from db.client import get_supabase_client
-
     result = await evaluate_output(prompt_text, summary_text, eval_type)
     if not result:
         return

@@ -1,9 +1,11 @@
 import io
 import time
 
+import httpx
 from api.langfuse_config import log_generation
 from api.logging_config import get_logger
 from config import get_settings
+from openai import AsyncOpenAI
 from services.openai_utils import raise_openai_error
 from services.storage import StorageService
 
@@ -26,8 +28,6 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl") -> str:
         return await transcribe_audio_data(audio_content, language)
 
     # Fallback: try direct HTTP download for non-Supabase URLs
-    import httpx
-
     async with httpx.AsyncClient() as client:
         response = await client.get(audio_url)
         response.raise_for_status()
@@ -43,8 +43,6 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl") -> str:
 
     if not audio_data or len(audio_data) == 0:
         raise RuntimeError("Transcription failed: No audio data")
-
-    from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 

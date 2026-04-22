@@ -33,8 +33,24 @@ class EvaluationResultResponse(BaseModel):
     evaluator_model: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_row(cls, row: dict) -> "EvaluationResultResponse":
+        """Create an EvaluationResultResponse from a Supabase row dict."""
+        return cls(
+            id=row["id"],
+            event_id=row["event_id"],
+            eval_type=row["eval_type"],
+            prompt_text=row.get("prompt_text"),
+            summary_text=row.get("summary_text"),
+            factual_accuracy=row.get("factual_accuracy"),
+            coherence=row.get("coherence"),
+            completeness=row.get("completeness"),
+            overall_score=row.get("overall_score"),
+            evaluator_model=row.get("evaluator_model", "gpt-4o"),
+            created_at=row["created_at"],
+        )
 
 
 class DashboardStats(BaseModel):

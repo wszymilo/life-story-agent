@@ -1,9 +1,11 @@
 import io
+import re
 import zipfile
 from typing import Any
 
 from api.logging_config import get_logger
 from services.storage import StorageService
+from unidecode import unidecode
 
 logger = get_logger()
 
@@ -157,10 +159,6 @@ def _sanitize_filename(name: str) -> str:
     Returns:
         Sanitized filename (ASCII-only)
     """
-    import re
-
-    from unidecode import unidecode
-
     # First transliterate Unicode characters to ASCII equivalents
     # e.g., "Motocyklowa Odysseja przez Norwegię" → "Motocyklowa Odysseja przez Norwegie"
     # e.g., "Zażółć gęślą jaźń" → "Zazolc gesla jazn"

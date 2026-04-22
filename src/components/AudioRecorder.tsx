@@ -34,14 +34,6 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleRecord = async () => {
-    await startRecording()
-  }
-
-  const handleStop = () => {
-    stopRecording()
-  }
-
   const handleReset = () => {
     prevBlobRef.current = null
     reset()
@@ -82,7 +74,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
 
       {!isRecording && !audioBlob && (
         <button
-          onClick={handleRecord}
+          onClick={startRecording}
           disabled={disabled}
           className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Start recording"
@@ -93,7 +85,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
 
       {isRecording && (
         <button
-          onClick={handleStop}
+          onClick={stopRecording}
           disabled={disabled}
           className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
           aria-label="Stop recording"

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
+import { LoadingScreen } from './LoadingScreen'
 import {
   analyzeEvent,
   generateFollowUp,
@@ -129,27 +130,20 @@ export function InterviewScreen() {
 
   if (state === 'loading' || state === 'analyzing') {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <TopBar title="Interview"  />
-        <div className="max-w-2xl mx-auto p-4 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">
-            {state === 'loading' ? 'Loading...' : 'Analyzing your story...'}
-          </h2>
-          <p className="text-gray-600 mt-2 text-lg">
-            {state === 'analyzing'
-              ? 'Extracting details and preparing questions for you'
-              : 'Please wait...'}
-          </p>
-        </div>
-      </div>
+      <LoadingScreen
+        message={
+          state === 'analyzing'
+            ? 'Analyzing your story...'
+            : 'Loading...'
+        }
+      />
     )
   }
 
   if (state === 'error') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Error"  />
+        <TopBar title="Error" />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-red-600 mb-4">Something went wrong</h2>

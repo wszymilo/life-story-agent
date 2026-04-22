@@ -36,3 +36,7 @@ class UserResponse(BaseModel):
     relatives: list[RelativeResponse] = []
 
     model_config = {"from_attributes": True}
+
+
+class LanguageUpdate(BaseModel):
+    preferred_language: str = Field(min_length=2, max_length=2)

@@ -36,22 +36,7 @@ async def get_dashboard(
             recent_evaluations=[],
         )
 
-    recent = [
-        EvaluationResultResponse(
-            id=r["id"],
-            event_id=r["event_id"],
-            eval_type=r["eval_type"],
-            prompt_text=r.get("prompt_text"),
-            summary_text=r.get("summary_text"),
-            factual_accuracy=r.get("factual_accuracy"),
-            coherence=r.get("coherence"),
-            completeness=r.get("completeness"),
-            overall_score=r.get("overall_score"),
-            evaluator_model=r.get("evaluator_model", "gpt-4o"),
-            created_at=r["created_at"],
-        )
-        for r in results.data
-    ]
+    recent = [EvaluationResultResponse.from_row(r) for r in results.data]
 
     total = len(results.data)
     
@@ -89,17 +74,4 @@ async def create_evaluation(
     if not result.data:
         raise HTTPException(500, "Failed to create evaluation")
 
-    r = result.data[0]
-    return EvaluationResultResponse(
-        id=r["id"],
-        event_id=r["event_id"],
-        eval_type=r["eval_type"],
-        prompt_text=r.get("prompt_text"),
-        summary_text=r.get("summary_text"),
-        factual_accuracy=r.get("factual_accuracy"),
-        coherence=r.get("coherence"),
-        completeness=r.get("completeness"),
-        overall_score=r.get("overall_score"),
-        evaluator_model=r.get("evaluator_model", "gpt-4o"),
-        created_at=r["created_at"],
-    )
+    return EvaluationResultResponse.from_row(result.data[0])
