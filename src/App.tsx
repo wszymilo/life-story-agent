@@ -10,6 +10,7 @@ import { SummaryScreen } from './components/SummaryScreen'
 import { DebugScreen } from './components/DebugScreen'
 import { TimelineScreen } from './screens/TimelineScreen'
 import { EventDetailScreen } from './screens/EventDetailScreen'
+import { DashboardScreen } from './screens/DashboardScreen'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -118,6 +119,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <OnboardingCheck>
               <TimelineScreen />
+            </OnboardingCheck>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <OnboardingCheck>
+              <DashboardScreen />
             </OnboardingCheck>
           </ProtectedRoute>
         }
