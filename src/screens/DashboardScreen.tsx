@@ -1,22 +1,23 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getDashboardStats, DashboardStats } from '../services/evaluation';
-import { TopBar } from '../components/TopBar';
-import { LoadingScreen } from '../components/LoadingScreen';
-import { ErrorFallback } from '../components/ErrorFallback';
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getDashboardStats, DashboardStats } from '../services/evaluation'
+import { TopBar } from '../components/TopBar'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
+import { extractErrorMessage } from '../lib/errors'
 
 export function DashboardScreen() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getDashboardStats()
       .then(setStats)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((err) => setError(extractErrorMessage(err, 'Failed to load dashboard')))
+      .finally(() => setLoading(false))
+  }, [])
 
   if (loading) {
     return <LoadingScreen message="Loading dashboard..." />;

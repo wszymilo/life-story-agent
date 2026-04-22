@@ -67,6 +67,7 @@ export function LoginScreen() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 required
                 value={email}
@@ -78,7 +79,7 @@ export function LoginScreen() {
             </div>
 
             {loginState === 'error' && (
-              <div className="text-red-600 text-sm">{errorMessage}</div>
+              <div className="text-red-600 text-sm" role="alert" aria-live="assertive">{errorMessage}</div>
             )}
 
             <button

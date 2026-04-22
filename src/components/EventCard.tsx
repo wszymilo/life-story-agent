@@ -63,6 +63,7 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect,
           checked={selected || false}
           onChange={handleCheckboxChange}
           className="mt-1 w-5 h-5 text-blue-600 rounded"
+          aria-label={`Select memory: ${event.title || 'Untitled'}`}
         />
       )}
       <div className="flex-1">

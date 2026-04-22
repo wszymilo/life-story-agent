@@ -74,17 +74,14 @@ export function InterviewScreen() {
       const result = await generateTTS(currentQuestion.question_text)
       await play(result.audio_url, {
         onEnded: () => {
-          console.log('Audio playback ended')
           setState('ready')
         },
         onError: () => {
-          console.error('Audio playback error')
           setError('Failed to play audio')
           setState('ready')
         },
       })
     } catch (err) {
-      console.error('TTS generation error:', err)
       setError(extractErrorMessage(err, 'Failed to play audio'))
       setState('ready')
     }
@@ -150,14 +147,18 @@ export function InterviewScreen() {
             <p className="text-gray-600 mb-4 text-lg">{error}</p>
             <div className="flex gap-4">
               <button
+                type="button"
                 onClick={() => window.location.reload()}
-                className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
+                disabled={isGenerating}
+                className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
               >
                 Try Again
               </button>
               <button
+                type="button"
                 onClick={() => navigate('/')}
-                className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium"
+                disabled={isGenerating}
+                className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium disabled:opacity-50"
               >
                 Go Home
               </button>
@@ -179,12 +180,13 @@ export function InterviewScreen() {
             <p className="text-gray-600 mb-6 text-lg">
               Thank you for sharing more about your life story.
             </p>
-            <button
-              onClick={handleEnd}
-              className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
-            >
-              Go to Timeline
-            </button>
+              <button
+                type="button"
+                onClick={handleEnd}
+                className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
+              >
+                Go to Timeline
+              </button>
           </div>
         </div>
       </div>
@@ -218,6 +220,7 @@ export function InterviewScreen() {
 
               <div className="flex gap-4 mb-4">
                 <button
+                  type="button"
                   onClick={playQuestionAudio}
                   disabled={state === 'playing'}
                   className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"

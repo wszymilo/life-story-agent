@@ -44,6 +44,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
       <div className="flex flex-col items-center justify-center p-8">
         <div className="text-red-600 text-xl mb-4">{error}</div>
         <button
+          type="button"
           onClick={handleReset}
           className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
         >
@@ -63,7 +64,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
       )}
 
       {statusMessage && (
-        <div className="mb-6">
+        <div className="mb-6" aria-live="polite">
           <p className="text-blue-600 font-medium text-lg">{statusMessage}</p>
         </div>
       )}

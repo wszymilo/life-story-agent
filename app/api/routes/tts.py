@@ -1,9 +1,12 @@
 from api.deps import CurrentUser, get_current_user
 from api.rate_limit_config import limiter
+from config import get_settings
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from services.tts import generate_speech
+
+settings = get_settings()
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 
@@ -11,7 +14,7 @@ router = APIRouter(prefix="/tts", tags=["tts"])
 class TTSRequest(BaseModel):
     text: str
     voice: str = "nova"
-    model: str = "gpt-4o-mini-tts"
+    model: str = settings.tts_model
     response_format: str = "mp3"
 
 

@@ -166,7 +166,7 @@ Do NOT add any information not present in the source material."""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Create a summary from this life story content:\n\n{content}"}
@@ -209,7 +209,7 @@ Language: {language}"""
 
     try:
         response = await client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Source:\n{source_content}\n\nSummary to validate:\n{summary}"}
@@ -254,7 +254,7 @@ Requirements:
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Source:\n{content}\n\nPrevious summary:\n{previous_summary}\n\nCreate a corrected summary:"}
@@ -294,7 +294,7 @@ Return ONLY the title, nothing else."""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Generate a title for:\n{summary}"}
@@ -350,7 +350,7 @@ Language: {language}"""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Extract the primary date from this story:\n\n{content}"}

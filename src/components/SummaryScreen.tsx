@@ -108,6 +108,7 @@ export function SummaryScreen() {
 
         <div className="flex flex-col gap-3">
           <button
+            type="button"
             onClick={handlePlaySummary}
             disabled={isPlaying}
             className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
@@ -125,6 +126,7 @@ export function SummaryScreen() {
           </button>
 
           <button
+            type="button"
             onClick={handleConfirm}
             className="w-full py-4 min-h-12 bg-green-600 text-white text-lg rounded-xl font-medium hover:bg-green-700"
           >

@@ -9,11 +9,20 @@ from services.openai_utils import raise_openai_error
 settings = get_settings()
 logger = get_logger()
 
+VALID_VOICES = [
+    "alloy", "ash", "ballad", "coral", "echo", "fable",
+    "onyx", "nova", "sage", "shimmer", "verse", "marin", "cedar"
+]
 
-async def generate_speech(
+VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-12-15"]
+
+VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]
+
+
+async def generate_speech (
     text: str,
     voice: str = "nova",
-    model: str = "gpt-4o-mini-tts",
+    model: str = settings.tts_model,
     response_format: str = "mp3",
 ) -> tuple[bytes, str]:
     """Generate speech from text using OpenAI TTS API.
@@ -99,13 +108,3 @@ async def generate_speech(
         )
 
         raise_openai_error(e, "TTS")
-
-
-VALID_VOICES = [
-    "alloy", "ash", "ballad", "coral", "echo", "fable",
-    "onyx", "nova", "sage", "shimmer", "verse", "marin", "cedar"
-]
-
-VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-12-15"]
-
-VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]

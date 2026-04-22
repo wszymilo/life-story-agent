@@ -31,7 +31,7 @@ export function RecordingScreen() {
       }
       setState('idle')
     } catch (err) {
-      console.error('Failed to load event:', err)
+      setError(extractErrorMessage(err, 'Failed to load existing recording'))
     }
   }
 
@@ -132,12 +132,14 @@ export function RecordingScreen() {
             <p className="text-gray-600 mb-6 text-lg">{transcript}</p>
             <div className="flex flex-col gap-3">
               <button
+                type="button"
                 onClick={() => navigate(`/interview/${eventId}`)}
                 className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
               >
                 Continue to Interview
               </button>
               <button
+                type="button"
                 onClick={() => navigate('/')}
                 className="w-full py-3 text-gray-600 hover:text-gray-800 text-lg"
               >
@@ -163,12 +165,22 @@ export function RecordingScreen() {
 
             {recordingId && !retrying && (
               <button
+                type="button"
                 onClick={handleRetryTranscribe}
-                className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700 mb-4"
+                disabled={retrying}
+                className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700 mb-4 disabled:opacity-50"
               >
-                Retry Transcription
+                {retrying ? 'Retrying...' : 'Retry Transcription'}
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="w-full py-4 min-h-12 bg-gray-200 text-gray-700 rounded-lg font-medium text-lg hover:bg-gray-300"
+            >
+              Record New Story
+            </button>
 
             <button
               onClick={handleRetry}
@@ -198,6 +210,7 @@ export function RecordingScreen() {
           </label>
           <input
             id="title"
+            name="title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}

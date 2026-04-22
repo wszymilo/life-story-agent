@@ -38,7 +38,7 @@ export function TimelineScreen() {
       await updatePreferredLanguage(lang)
       await refreshProfile()
     } catch (err) {
-      console.error('Failed to update language:', err)
+      setError(extractErrorMessage(err, 'Failed to update language'))
     } finally {
       setChangingLanguage(false)
     }
@@ -71,7 +71,7 @@ export function TimelineScreen() {
       const result = await generateMetaStory(Array.from(selectedIds))
       navigate(`/event/${result.id}`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to generate meta-story')
+      alert(extractErrorMessage(err, 'Failed to generate meta-story'))
     } finally {
       setGenerating(false)
     }
@@ -84,7 +84,7 @@ export function TimelineScreen() {
       const data = await listEvents()
       setEvents(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load events')
+      setError(extractErrorMessage(err, 'Failed to load events'))
     } finally {
       setLoading(false)
     }
@@ -98,7 +98,7 @@ export function TimelineScreen() {
         const data = await listEvents()
         setEvents(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load events')
+        setError(extractErrorMessage(err, 'Failed to load events'))
       } finally {
         setLoading(false)
       }
@@ -152,6 +152,7 @@ export function TimelineScreen() {
                   onClick={() => navigate('/dashboard')}
                   className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
                   title="Dashboard"
+                  aria-label="Admin Dashboard"
                 >
                   📊
                 </button>
@@ -178,8 +179,10 @@ export function TimelineScreen() {
               No memories yet. Start recording your life story!
             </p>
             <button
+              type="button"
               onClick={() => navigate('/record')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium"
+              disabled={loading || generating}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
             >
               Record Your First Memory
             </button>
@@ -203,6 +206,7 @@ export function TimelineScreen() {
         {events.length > 0 && (
           <>
             <button
+              type="button"
               onClick={() => navigate('/record')}
               className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
               aria-label="Add new memory"

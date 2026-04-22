@@ -32,7 +32,7 @@ export function EventDetailScreen() {
         const data = await getEvent(eventId)
         setEvent(data)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load event')
+        setError(extractErrorMessage(err, 'Failed to load event'))
       } finally {
         setLoading(false)
       }
@@ -54,7 +54,7 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete')
+      alert(extractErrorMessage(err, 'Failed to delete'))
       setDeleting(false)
     }
   }
@@ -71,7 +71,7 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/record')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete draft')
+      alert(extractErrorMessage(err, 'Failed to delete draft'))
       setDeleting(false)
     }
   }
@@ -107,7 +107,6 @@ export function EventDetailScreen() {
       })
     } catch (err) {
       setPlayingRecordingId(null)
-      console.error('Failed to play audio:', err)
       alert('Failed to play audio')
     }
   }
@@ -173,14 +172,18 @@ export function EventDetailScreen() {
           {isDraft && (
             <div className="space-y-3">
               <button
+                type="button"
                 onClick={() => navigate(`/interview/${event.id}`)}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium"
+                disabled={deleting}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
               >
                 Continue to Interview
               </button>
               <button
+                type="button"
                 onClick={handleRecordAgain}
-                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
+                disabled={deleting}
+                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium disabled:opacity-50"
               >
                 Record Again
               </button>
@@ -218,6 +221,7 @@ export function EventDetailScreen() {
                   </div>
                   {recording.audio_url && (
                     <button
+                      type="button"
                       onClick={() => playAudio(recording)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
                         playingRecordingId === recording.id
