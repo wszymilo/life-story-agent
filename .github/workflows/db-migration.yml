@@ -1,0 +1,31 @@
+name: Database Migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Run database migrations
+        run: supabase db push --project-ref qwzdkkctxcxllvqnodfi
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_URI }}
+
+      - name: Show migration status
+        run: supabase migration list
