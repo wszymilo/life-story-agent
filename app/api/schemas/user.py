@@ -34,6 +34,7 @@ class UserResponse(BaseModel):
     preferred_language: str = "pl"
     created_at: datetime
     relatives: list[RelativeResponse] = []
+    is_admin: bool = False
 
     model_config = {"from_attributes": True}
 

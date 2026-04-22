@@ -147,13 +147,15 @@ export function TimelineScreen() {
                   </option>
                 ))}
               </select>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
-                title="Dashboard"
-              >
-                📊
-              </button>
+              {profile?.is_admin && (
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
+                  title="Dashboard"
+                >
+                  📊
+                </button>
+              )}
             </div>
           )
         }

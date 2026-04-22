@@ -10,8 +10,11 @@ from api.schemas.user import (
     UserUpdate,
 )
 from api.utils import require_data, serialize_update_data
+from config import get_settings
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+settings = get_settings()
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -34,6 +37,8 @@ async def get_user_with_relatives(request: Request, user_id: uuid.UUID) -> UserR
     )
     relatives = [RelativeResponse(**r) for r in relatives_response.data]
 
+    is_admin = user_data.get("email") == settings.admin_email
+
     return UserResponse(
         id=user_data["id"],
         email=user_data["email"],
@@ -43,6 +48,7 @@ async def get_user_with_relatives(request: Request, user_id: uuid.UUID) -> UserR
         preferred_language=user_data.get("preferred_language", "pl"),
         created_at=user_data["created_at"],
         relatives=relatives,
+        is_admin=is_admin,
     )
 
 

@@ -17,6 +17,7 @@ export interface UserProfile {
   preferred_language?: string
   created_at: string
   relatives: []
+  is_admin?: boolean
 }
 
 export interface UserUpdate {
