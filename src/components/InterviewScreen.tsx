@@ -19,7 +19,7 @@ export function InterviewScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
   const [state, setState] = useState<InterviewState>('loading')
-  const [isUploading, setIsUploading] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [event, setEvent] = useState<EventWithQuestions | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
@@ -104,15 +104,15 @@ export function InterviewScreen() {
   const handleAudioComplete = async (audioBlob: Blob) => {
     if (!eventId || !currentQuestion) return
 
-    setIsUploading(true)
+    setStatusMessage('Uploading your recording...')
     try {
+      setStatusMessage('Processing your response...')
       await addRecording(eventId, audioBlob, 'follow_up_response')
       window.location.reload()
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to save response'))
       setState('ready')
-    } finally {
-      setIsUploading(false)
+      setStatusMessage('')
     }
   }
 
@@ -257,7 +257,7 @@ export function InterviewScreen() {
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}
               disabled={state === 'playing'}
-              isUploading={isUploading}
+              statusMessage={statusMessage}
             />
           </div>
         </div>

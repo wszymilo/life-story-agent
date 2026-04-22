@@ -5,9 +5,10 @@ interface AudioRecorderProps {
   onRecordingComplete?: (blob: Blob) => void
   disabled?: boolean
   isUploading?: boolean
+  statusMessage?: string
 }
 
-export function AudioRecorder({ onRecordingComplete, disabled, isUploading }: AudioRecorderProps) {
+export function AudioRecorder({ onRecordingComplete, disabled, isUploading, statusMessage }: AudioRecorderProps) {
   const {
     startRecording,
     stopRecording,
@@ -66,6 +67,12 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading }: Au
         <div className="flex items-center gap-3 mb-6">
           <span className="w-4 h-4 bg-red-600 rounded-full animate-pulse" />
           <span className="text-red-600 font-medium">Recording...</span>
+        </div>
+      )}
+
+      {statusMessage && (
+        <div className="mb-6">
+          <p className="text-blue-600 font-medium text-lg">{statusMessage}</p>
         </div>
       )}
 
