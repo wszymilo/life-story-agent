@@ -1,7 +1,5 @@
 """Tests for evaluation service."""
 
-import pytest
-
 
 def test_should_evaluate_when_disabled():
     """Test evaluation is skipped when disabled."""
