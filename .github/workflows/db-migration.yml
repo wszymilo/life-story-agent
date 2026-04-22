@@ -25,7 +25,7 @@ jobs:
       - name: Run database migrations
         run: supabase db push
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URI }}
 
       - name: Show migration status
         run: supabase migration list
