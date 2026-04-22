@@ -109,7 +109,9 @@ async def get_event(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Get an event by ID with recordings."""
+    logger.info("get_event_request", event_id=str(event_id), user_id=str(current_user.id), method=request.method)
     event_data, recordings = await get_event_with_recordings(request, event_id)
+    logger.info("get_event_response", event_id=str(event_id), recordings_count=len(recordings))
     return {**event_data, "recordings": recordings}
 
 
@@ -274,7 +276,7 @@ async def add_recording(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Add a recording to an event. Accepts audio file via multipart/form-data."""
-    logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type)
+    logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
     if not file.content_type or not file.content_type.startswith("audio/"):
         logger.warning("recording_invalid_content_type", content_type=file.content_type)
@@ -381,6 +383,7 @@ async def add_recording(
         }
         return recording_with_detail
 
+    logger.info("add_recording_completed", event_id=str(event_id), recording_id=response.data[0]["id"], recording_type=recording_type)
     return response.data[0]
 
 
