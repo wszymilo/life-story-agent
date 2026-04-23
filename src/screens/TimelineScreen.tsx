@@ -12,10 +12,13 @@ import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
 import { LANGUAGE_OPTIONS } from '../services/constants'
 import { useEventSelection } from '../hooks/useEventSelection'
+import { useEncryption } from '../hooks/useEncryption'
+import { decrypt } from '../lib/crypto'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
   const { profile, refreshProfile } = useAuth()
+  const { key, isReady } = useEncryption()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
@@ -96,7 +99,19 @@ export function TimelineScreen() {
         setLoading(true)
         setError('')
         const data = await listEvents()
-        setEvents(data)
+
+        // Decrypt titles if encryption key is available
+        if (key) {
+          const decryptedEvents = await Promise.all(
+            data.map(async (event) => ({
+              ...event,
+              title: event.title ? await decrypt(event.title, key) : null,
+            }))
+          )
+          setEvents(decryptedEvents)
+        } else {
+          setEvents(data)
+        }
       } catch (err) {
         setError(extractErrorMessage(err, 'Failed to load events'))
       } finally {
@@ -104,7 +119,7 @@ export function TimelineScreen() {
       }
     }
     loadEvents()
-  }, [])
+  }, [key])
 
   if (loading) {
     return <LoadingScreen message="Loading memories..." />

@@ -34,15 +34,39 @@ export interface TranscriptAnalysis {
   summary: string
 }
 
-export async function analyzeEvent(eventId: string): Promise<TranscriptAnalysis> {
+export async function analyzeEvent(eventId: string, transcript: string): Promise<TranscriptAnalysis> {
   return fetchJson<TranscriptAnalysis>(`/api/events/${eventId}/analyze`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
   })
 }
 
-export async function generateFollowUp(eventId: string): Promise<FollowUpQuestion> {
+export async function generateFollowUp(
+  eventId: string,
+  transcript: string,
+  existingQuestions: string[] = []
+): Promise<FollowUpQuestion> {
   return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/follow-up`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript, existing_questions: existingQuestions }),
+  })
+}
+
+export async function createQuestion(
+  eventId: string,
+  question: {
+    question_text: string
+    question_type?: string
+    context?: string
+    target_area?: string
+  }
+): Promise<FollowUpQuestion> {
+  return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(question),
   })
 }
 

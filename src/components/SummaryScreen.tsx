@@ -1,32 +1,89 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { completeEvent, CompletedEvent } from '../services/events'
+import { completeEvent, getEvent, updateEvent, EventData, AudioRecording, QuestionAnswer } from '../services/events'
+import { getEventWithQuestions } from '../services/interview'
 import { generateTTS } from '../services/interview'
+import { encrypt, decrypt } from '../lib/crypto'
 import { TopBar } from './TopBar'
 import { LoadingScreen } from './LoadingScreen'
 import { ErrorFallback } from './ErrorFallback'
 import { extractErrorMessage } from '../lib/errors'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import { useEncryption } from '../hooks/useEncryption'
 
 type SummaryState = 'loading' | 'ready' | 'playing' | 'error'
 
 export function SummaryScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { key, isReady } = useEncryption()
   const [state, setState] = useState<SummaryState>('loading')
-  const [event, setEvent] = useState<CompletedEvent | null>(null)
+  const [event, setEvent] = useState<EventData | null>(null)
   const [error, setError] = useState<string>('')
   const { play, isPlaying } = useAudioPlayer()
 
   const loadEvent = async () => {
-    if (!eventId) { return }
+    if (!eventId || !key) return
 
     try {
       setState('loading')
       setError('')
 
-      const completedEvent = await completeEvent(eventId)
-      setEvent(completedEvent)
+      // Fetch event with recordings and questions
+      const [eventData, eventWithQuestions] = await Promise.all([
+        getEvent(eventId),
+        getEventWithQuestions(eventId),
+      ])
+
+      // Decrypt transcripts from recordings
+      const decryptedRecordings: AudioRecording[] = await Promise.all(
+        (eventWithQuestions.recordings || []).map(async (r) => ({
+          ...r,
+          transcript: r.transcript ? await decrypt(r.transcript, key) : null,
+        }))
+      )
+
+      // Build plaintext transcripts array
+      const transcripts = decryptedRecordings
+        .map(r => r.transcript)
+        .filter((t): t is string => !!t)
+
+      // Build Q&A from follow-up questions
+      const questionsAndAnswers: QuestionAnswer[] = []
+      for (const q of eventWithQuestions.follow_up_questions || []) {
+        if (q.was_answered && q.audio_url) {
+          const answerRecording = decryptedRecordings.find(r => r.audio_url === q.audio_url)
+          if (answerRecording?.transcript) {
+            const decryptedQuestion = q.question_text ? await decrypt(q.question_text, key) : ''
+            questionsAndAnswers.push({
+              question: decryptedQuestion,
+              answer: answerRecording.transcript,
+            })
+          }
+        }
+      }
+
+      // Call complete with plaintext
+      const completedEvent = await completeEvent(eventId, transcripts, questionsAndAnswers)
+
+      // Encrypt and store summary + title
+      const encryptedTitle = await encrypt(completedEvent.title, key)
+      const encryptedSummary = await encrypt(completedEvent.summary, key)
+      await updateEvent(eventId, {
+        title: encryptedTitle,
+        summary: encryptedSummary,
+        status: 'complete',
+        time_anchor_date: completedEvent.time_anchor_date,
+      })
+
+      // Set decrypted event for display
+      setEvent({
+        ...eventData,
+        title: completedEvent.title,
+        summary: completedEvent.summary,
+        status: 'complete',
+        recordings: decryptedRecordings,
+      })
       setState('ready')
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to generate summary'))
@@ -35,24 +92,10 @@ export function SummaryScreen() {
   }
 
   useEffect(() => {
-    if (!eventId || event) { return }
+    if (!eventId || event || !isReady || !key) return
 
-    const fetchData = async () => {
-      try {
-        setState('loading')
-        setError('')
-
-        const completedEvent = await completeEvent(eventId)
-        setEvent(completedEvent)
-        setState('ready')
-      } catch (err) {
-        setError(extractErrorMessage(err, 'Failed to generate summary'))
-        setState('error')
-      }
-    }
-
-    fetchData()
-  }, [eventId, event])
+    loadEvent()
+  }, [eventId, event, isReady, key])
 
   const handlePlaySummary = async () => {
     if (!event?.summary) return

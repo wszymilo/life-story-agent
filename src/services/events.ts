@@ -100,6 +100,17 @@ export async function addRecording(
   return result
 }
 
+export async function updateRecordingTranscript(
+  recordingId: string,
+  transcript: string
+): Promise<AudioRecording> {
+  return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcript`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
+  })
+}
+
 export async function retryTranscribe(recordingId: string): Promise<AudioRecording> {
   return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcribe`, {
     method: 'POST',
@@ -111,33 +122,24 @@ export interface CompletedEvent {
   title: string
   summary: string
   status: string
+  time_anchor_date: string | null
 }
 
-export async function completeEvent(eventId: string): Promise<CompletedEvent> {
+export interface QuestionAnswer {
+  question: string
+  answer: string
+}
+
+export async function completeEvent(
+  eventId: string,
+  transcripts: string[],
+  questionsAndAnswers: QuestionAnswer[]
+): Promise<CompletedEvent> {
   return fetchJson<CompletedEvent>(`/api/events/${eventId}/complete`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcripts, questions_and_answers: questionsAndAnswers }),
   })
-}
-
-export interface ExportResult {
-  blob: Blob
-  filename: string
-}
-
-export async function exportEvent(eventId: string): Promise<ExportResult> {
-  const response = await fetchApi(`/api/events/${eventId}/export`)
-  if (!response.ok) {
-    throw new Error('Failed to export event')
-  }
-
-  // Extract filename from Content-Disposition header
-  // Format: attachment; filename="Motocyklowa_Odysseja_przez_Norwegie_{id}.zip"
-  const contentDisposition = response.headers.get('Content-Disposition') || ''
-  const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/)
-  const filename = filenameMatch ? filenameMatch[1] : `${eventId}.zip`
-
-  const blob = await response.blob()
-  return { blob, filename }
 }
 
 export async function generateMetaStory(eventIds: string[]): Promise<{ id: string }> {

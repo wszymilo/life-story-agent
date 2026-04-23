@@ -7,11 +7,14 @@ import { LoadingScreen } from '../components/LoadingScreen'
 import { ErrorFallback } from '../components/ErrorFallback'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import { useEventExport } from '../hooks/useEventExport'
+import { useEncryption } from '../hooks/useEncryption'
+import { decrypt } from '../lib/crypto'
 import { formatDate, formatDuration } from '../lib/date'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { key } = useEncryption()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
@@ -30,7 +33,27 @@ export function EventDetailScreen() {
         setLoading(true)
         setError('')
         const data = await getEvent(eventId)
-        setEvent(data)
+
+        if (key) {
+          // Decrypt title, summary, and transcripts
+          const decryptedTitle = data.title ? await decrypt(data.title, key) : null
+          const decryptedSummary = data.summary ? await decrypt(data.summary, key) : null
+          const decryptedRecordings = await Promise.all(
+            (data.recordings || []).map(async (r) => ({
+              ...r,
+              transcript: r.transcript ? await decrypt(r.transcript, key) : null,
+            }))
+          )
+
+          setEvent({
+            ...data,
+            title: decryptedTitle,
+            summary: decryptedSummary,
+            recordings: decryptedRecordings,
+          })
+        } else {
+          setEvent(data)
+        }
       } catch (err) {
         setError(extractErrorMessage(err, 'Failed to load event'))
       } finally {
@@ -39,7 +62,7 @@ export function EventDetailScreen() {
     }
 
     loadEvent()
-  }, [eventId])
+  }, [eventId, key])
 
   const handleDelete = () => {
     if (!event?.id) return
@@ -77,8 +100,8 @@ export function EventDetailScreen() {
   }
 
   const handleExport = () => {
-    if (!event?.id) return
-    downloadExport(event.id)
+    if (!event) return
+    downloadExport(event)
   }
 
   const playAudio = async (recording: AudioRecording) => {

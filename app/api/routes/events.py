@@ -5,11 +5,13 @@ from api.deps import CurrentUser, get_current_user
 from api.logging_config import get_logger
 from api.schemas.event import (
     AudioRecordingResponse,
+    CompleteEventRequest,
     EventCreate,
     EventResponse,
     EventUpdate,
     EventWithRecordingsResponse,
     MetaGenerateRequest,
+    TranscriptUpdateRequest,
 )
 from api.utils import (
     get_event_for_user,
@@ -20,10 +22,9 @@ from api.utils import (
 from config import get_settings
 from db.client import get_supabase_client
 from services.storage import StorageService
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from services.event_completion import complete_event_session
-from services.export import _sanitize_filename, generate_event_export
 from services.meta_story_generator import generate_meta_story
 from services.recording_orchestrator import add_recording_to_event
 from services.transcription import transcribe_audio_url
@@ -329,85 +330,79 @@ async def retry_transcribe(
     return update_response.data[0]
 
 
+@router.put("/recordings/{recording_id}/transcript", response_model=AudioRecordingResponse)
+async def update_recording_transcript(
+    request: Request,
+    recording_id: uuid.UUID,
+    body: TranscriptUpdateRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Update the encrypted transcript for a recording."""
+    supabase = await get_supabase_client()
+
+    recording_response = (
+        supabase.table("audio_recordings")
+        .select("event_id")
+        .eq("id", str(recording_id))
+        .execute()
+    )
+
+    if not recording_response.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recording not found",
+        )
+
+    event_id = recording_response.data[0]["event_id"]
+    await get_event_for_user(supabase, event_id, str(current_user.id))
+
+    update_response = (
+        supabase.table("audio_recordings")
+        .update({"transcript": body.transcript})
+        .eq("id", str(recording_id))
+        .execute()
+    )
+    require_data(update_response, "Failed to update transcript")
+
+    return update_response.data[0]
+
+
 @router.post("/{event_id}/complete", status_code=status.HTTP_200_OK)
 async def complete_event(
     request: Request,
     event_id: uuid.UUID,
+    body: CompleteEventRequest,
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Complete an event session and generate summary.
 
-    Gathers all transcripts and Q&A, generates a grounded summary,
-    updates the event with summary and title, sets status to complete.
+    Client sends decrypted transcripts and Q&A.
+    Backend generates summary via LLM and returns plaintext result.
+    Client encrypts and stores the result.
     """
     supabase = await get_supabase_client()
     result = await complete_event_session(
         supabase=supabase,
         event_id=str(event_id),
         user_id=str(current_user.id),
+        transcripts=body.transcripts,
+        questions_and_answers=body.questions_and_answers,
     )
-    return result
 
-
-@router.get("/{event_id}/export")
-async def export_event(
-    request: Request,
-    event_id: uuid.UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """Export event as a ZIP file containing markdown summary and audio files."""
-    supabase = await get_supabase_client()
-
-    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    if event.get("status") != "complete":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only completed events can be exported",
-        )
-
-    _, recordings = await get_event_with_recordings(request, event_id)
-
-    recording_data = []
-    for rec in recordings:
-        recording_data.append({
-            "id": str(rec["id"]),
-            "event_id": str(event_id),
-            "audio_url": rec.get("audio_url"),
-            "transcript": rec.get("transcript"),
-            "recording_type": rec.get("recording_type"),
-            "created_at": rec.get("created_at"),
-        })
-
-    try:
-        zip_data = await generate_event_export(
+    # Trigger evaluation during plaintext phase
+    eval_payload = result.pop("_eval_payload", None)
+    if eval_payload:
+        from services.evaluation import evaluate_in_background
+        evaluate_in_background(
+            background_tasks,
             event_id=str(event_id),
-            event_title=event.get("title"),
-            summary=event.get("summary"),
-            recordings=recording_data,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate export: {str(e)}",
+            eval_type="summary",
+            prompt_text="\n\n".join(eval_payload["transcripts"]),
+            summary_text=eval_payload["summary"],
         )
 
-    title = event.get("title") or "untitled"
-    safe_title = _sanitize_filename(title)
-    filename = f"{safe_title}.zip"
-
-    return Response(
-        content=zip_data,
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
-    )
+    return result
 
 
 @router.post("/meta-generate", status_code=status.HTTP_201_CREATED)

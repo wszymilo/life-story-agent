@@ -8,29 +8,59 @@ import {
   generateFollowUp,
   getEventWithQuestions,
   generateTTS,
+  createQuestion,
   FollowUpQuestion,
   EventWithQuestions,
 } from '../services/interview'
-import { addRecording } from '../services/events'
+import { addRecording, updateRecordingTranscript } from '../services/events'
+import { encrypt, decrypt } from '../lib/crypto'
 import { extractErrorMessage } from '../lib/errors'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import { useEncryption } from '../hooks/useEncryption'
 
 type InterviewState = 'loading' | 'analyzing' | 'ready' | 'playing' | 'recording' | 'complete' | 'error'
 
 export function InterviewScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { key, isReady } = useEncryption()
   const [state, setState] = useState<InterviewState>('loading')
   const [statusMessage, setStatusMessage] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [event, setEvent] = useState<EventWithQuestions | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
   const [error, setError] = useState<string>('')
+  const [plaintextTranscript, setPlaintextTranscript] = useState<string>('')
   const isLoadingRef = useRef(false)
   const { play } = useAudioPlayer()
 
+  const decryptEventData = async (eventData: EventWithQuestions): Promise<EventWithQuestions> => {
+    if (!key) return eventData
+
+    const decryptedRecordings = await Promise.all(
+      (eventData.recordings || []).map(async (r) => ({
+        ...r,
+        transcript: r.transcript ? await decrypt(r.transcript, key) : null,
+      }))
+    )
+
+    const decryptedQuestions = await Promise.all(
+      (eventData.follow_up_questions || []).map(async (q) => ({
+        ...q,
+        question_text: q.question_text ? await decrypt(q.question_text, key) : '',
+      }))
+    )
+
+    return {
+      ...eventData,
+      title: eventData.title ? await decrypt(eventData.title, key) : null,
+      recordings: decryptedRecordings,
+      follow_up_questions: decryptedQuestions,
+    }
+  }
+
   useEffect(() => {
-    if (!eventId || isLoadingRef.current) return
+    if (!eventId || isLoadingRef.current || !isReady) return
 
     const loadData = async () => {
       isLoadingRef.current = true
@@ -38,10 +68,18 @@ export function InterviewScreen() {
 
       try {
         const eventData = await getEventWithQuestions(eventId)
-        setEvent(eventData)
+        const decryptedEvent = await decryptEventData(eventData)
+        setEvent(decryptedEvent)
 
-        if (eventData.follow_up_questions && eventData.follow_up_questions.length > 0) {
-          const unanswered = eventData.follow_up_questions.find(q => !q.was_answered && !q.audio_url)
+        // Build plaintext transcript from all recordings
+        const transcripts = (decryptedEvent.recordings || [])
+          .map(r => r.transcript)
+          .filter((t): t is string => !!t)
+        const combinedTranscript = transcripts.join('\n\n')
+        setPlaintextTranscript(combinedTranscript)
+
+        if (decryptedEvent.follow_up_questions && decryptedEvent.follow_up_questions.length > 0) {
+          const unanswered = decryptedEvent.follow_up_questions.find(q => !q.was_answered && !q.audio_url)
           if (unanswered) {
             setCurrentQuestion(unanswered)
             setState('ready')
@@ -50,9 +88,27 @@ export function InterviewScreen() {
           }
         } else {
           setState('analyzing')
-          await analyzeEvent(eventId)
-          const question = await generateFollowUp(eventId)
-          setCurrentQuestion(question as unknown as FollowUpQuestion)
+          await analyzeEvent(eventId, combinedTranscript)
+          const existingQuestions = decryptedEvent.follow_up_questions?.map(q => q.question_text) || []
+          const question = await generateFollowUp(eventId, combinedTranscript, existingQuestions)
+          // Encrypt and store the question
+          if (key) {
+            const encryptedQuestion = await encrypt(question.question_text, key)
+            const storedQuestion = await createQuestion(eventId, {
+              question_text: encryptedQuestion,
+              question_type: question.question_type,
+              context: question.context,
+              target_area: question.target_area,
+            })
+            setCurrentQuestion({
+              ...question,
+              id: storedQuestion.id,
+              event_id: eventId,
+              was_answered: false,
+              sequence_order: storedQuestion.sequence_order,
+              created_at: storedQuestion.created_at,
+            })
+          }
           setState('ready')
         }
       } catch (err) {
@@ -64,7 +120,7 @@ export function InterviewScreen() {
     }
 
     loadData()
-  }, [eventId])
+  }, [eventId, isReady, key])
 
   const playQuestionAudio = async () => {
     if (!currentQuestion || !eventId) return
@@ -88,12 +144,16 @@ export function InterviewScreen() {
   }
 
   const handleAudioComplete = async (audioBlob: Blob) => {
-    if (!eventId || !currentQuestion) return
+    if (!eventId || !currentQuestion || !key) return
 
     setStatusMessage('Uploading your recording...')
     try {
       setStatusMessage('Processing your response...')
-      await addRecording(eventId, audioBlob, 'follow_up_response')
+      const recording = await addRecording(eventId, audioBlob, 'follow_up_response')
+      if (recording.transcript) {
+        const encryptedTranscript = await encrypt(recording.transcript, key)
+        await updateRecordingTranscript(recording.id, encryptedTranscript)
+      }
       window.location.reload()
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to save response'))
@@ -103,12 +163,27 @@ export function InterviewScreen() {
   }
 
   const handleNextQuestion = async () => {
-    if (!eventId) return
+    if (!eventId || !key) return
 
     setIsGenerating(true)
     try {
-      const question = await generateFollowUp(eventId)
-      setCurrentQuestion(question as unknown as FollowUpQuestion)
+      const existingQuestions = event?.follow_up_questions?.map(q => q.question_text) || []
+      const question = await generateFollowUp(eventId, plaintextTranscript, existingQuestions)
+      const encryptedQuestion = await encrypt(question.question_text, key)
+      const storedQuestion = await createQuestion(eventId, {
+        question_text: encryptedQuestion,
+        question_type: question.question_type,
+        context: question.context,
+        target_area: question.target_area,
+      })
+      setCurrentQuestion({
+        ...question,
+        id: storedQuestion.id,
+        event_id: eventId,
+        was_answered: false,
+        sequence_order: storedQuestion.sequence_order,
+        created_at: storedQuestion.created_at,
+      })
       setState('ready')
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to generate next question'))
@@ -200,6 +275,7 @@ export function InterviewScreen() {
         secondary={{ label: 'End Interview', onClick: handleEnd }}
         tertiaryLeft={
           <button
+            type="button"
             onClick={handleNextQuestion}
             disabled={isGenerating}
             className="px-4 py-3 min-h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"

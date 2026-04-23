@@ -76,12 +76,12 @@ async def add_recording_to_event(
         transcript = None
         transcription_error = str(e)
 
-    # Persist recording
+    # Persist recording (transcript is encrypted by client; store null initially)
     sequence_order = get_next_sequence_order(supabase, "audio_recordings", event_id)
     recording_data = {
         "event_id": event_id,
         "audio_url": public_url,
-        "transcript": transcript,
+        "transcript": None,
         "sequence_order": sequence_order,
         "recording_type": recording_type,
         "duration_seconds": duration_seconds,
@@ -126,4 +126,9 @@ async def add_recording_to_event(
         recording_id=response.data[0]["id"],
         recording_type=recording_type,
     )
-    return response.data[0]
+
+    # Return plaintext transcript to client for encryption
+    return {
+        **response.data[0],
+        "transcript": transcript,
+    }
