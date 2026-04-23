@@ -161,7 +161,7 @@ describe('events service', () => {
             id: 'rec-1',
           }),
       }
-      mockFetch.mockResolvedValueOnce(errorResponse as any)
+      mockFetch.mockResolvedValueOnce(errorResponse as unknown as Response)
 
       const audioBlob = new Blob(['audio'], { type: 'audio/webm' })
       await expect(addRecording('evt-1', audioBlob)).rejects.toThrow('Transcription failed but audio saved')

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { completeEvent, getEvent, updateEvent, EventData, AudioRecording, QuestionAnswer } from '../services/events'
 import { getEventWithQuestions } from '../services/interview'
@@ -22,7 +22,7 @@ export function SummaryScreen() {
   const [error, setError] = useState<string>('')
   const { play, isPlaying } = useAudioPlayer()
 
-  const loadEvent = async () => {
+  const loadEvent = useCallback(async () => {
     if (!eventId || !key) return
 
     try {
@@ -89,13 +89,13 @@ export function SummaryScreen() {
       setError(extractErrorMessage(err, 'Failed to generate summary'))
       setState('error')
     }
-  }
+  }, [eventId, key])
 
   useEffect(() => {
     if (!eventId || event || !isReady || !key) return
 
     loadEvent()
-  }, [eventId, event, isReady, key])
+  }, [eventId, event, isReady, key, loadEvent])
 
   const handlePlaySummary = async () => {
     if (!event?.summary) return

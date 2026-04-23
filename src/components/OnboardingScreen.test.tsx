@@ -19,14 +19,14 @@ vi.mock('../services/user', () => ({
 }))
 
 const mockAuthContextValue = {
-  user: { id: 'test-user-id', email: 'test@example.com' } as any,
-  session: {} as any,
+  user: { id: 'test-user-id', email: 'test@example.com' } as unknown as { id: string; email: string },
+  session: {} as unknown as Record<string, unknown>,
   loading: false,
   profile: null,
   profileLoading: false,
   isProfileComplete: false,
   refreshProfile: vi.fn(),
-}
+} as unknown as React.ContextType<typeof AuthContext>
 
 const renderWithRouter = (component: React.ReactElement) => {
   return render(

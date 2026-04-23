@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   analyzeEvent,
   generateFollowUp,
-  skipFollowUp,
   getEventWithQuestions,
   generateTTS,
 } from './interview'
@@ -75,25 +74,6 @@ describe('interview service', () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Failed to generate', 500))
 
       await expect(generateFollowUp('evt-1', 'Test transcript')).rejects.toThrow()
-    })
-  })
-
-  describe('skipFollowUp', () => {
-    it('skips follow-up question', async () => {
-      mockFetch.mockResolvedValueOnce(createFetchMock({ status: 204 }))
-
-      await skipFollowUp('evt-1', 'q-1')
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/follow-up/q-1/skip',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('throws on error', async () => {
-      mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
-
-      await expect(skipFollowUp('evt-1', 'q-1')).rejects.toThrow()
     })
   })
 

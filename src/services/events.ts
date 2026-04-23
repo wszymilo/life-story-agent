@@ -1,5 +1,10 @@
 import { fetchApi, fetchJson } from './api'
 
+export interface RecordingError extends Error {
+  audioUrl?: string
+  recordingId?: string
+}
+
 export interface CreateEventInput {
   title: string
   time_anchor?: string
@@ -94,8 +99,8 @@ export async function addRecording(
   const result = await response.json()
   if (!response.ok) {
     const error = new Error(result.detail || 'Failed to add recording')
-    ;(error as any).audioUrl = result.audio_url
-    ;(error as any).recordingId = result.id
+    ;(error as RecordingError).audioUrl = result.audio_url
+    ;(error as RecordingError).recordingId = result.id
     throw error
   }
   return result
@@ -150,8 +155,17 @@ export interface MetaStorySource {
   transcripts: string[]
 }
 
-export async function generateMetaStory(sources: MetaStorySource[]): Promise<{ title: string; summary: string }> {
-  return fetchJson<{ title: string; summary: string }>('/api/events/meta-generate', {
+export interface MetaStoryResult {
+  title: string
+  summary: string
+  _eval_payload?: {
+    sources: MetaStorySource[]
+    summary: string
+  }
+}
+
+export async function generateMetaStory(sources: MetaStorySource[]): Promise<MetaStoryResult> {
+  return fetchJson<MetaStoryResult>('/api/events/meta-generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sources }),

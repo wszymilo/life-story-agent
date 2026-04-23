@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
-import { addRecording, createEvent, retryTranscribe, updateRecordingTranscript, getEvent, EventData } from '../services/events'
+import { addRecording, createEvent, retryTranscribe, updateRecordingTranscript, getEvent, EventData, RecordingError } from '../services/events'
 import { encrypt } from '../lib/crypto'
 import { extractErrorMessage } from '../lib/errors'
 import { useEncryption } from '../hooks/useEncryption'
@@ -22,7 +22,7 @@ export function RecordingScreen() {
   const [title, setTitle] = useState<string>('')
   const [statusMessage, setStatusMessage] = useState<string>('')
 
-  const loadExistingEvent = async (id: string) => {
+  const loadExistingEvent = useCallback(async (id: string) => {
     try {
       const event: EventData = await getEvent(id)
       if (event.recordings && event.recordings.length > 0) {
@@ -38,14 +38,14 @@ export function RecordingScreen() {
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to load existing recording'))
     }
-  }
+  }, [key])
 
   useEffect(() => {
     if (urlEventId) {
       setEventId(urlEventId)
       loadExistingEvent(urlEventId)
     }
-  }, [urlEventId])
+  }, [urlEventId, loadExistingEvent])
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     if (!key) {
@@ -87,8 +87,8 @@ export function RecordingScreen() {
         }
       } catch (err) {
         setStatusMessage('')
-        const errorWithAudio = (err as any)
-        if (errorWithAudio.audioUrl || (err as Error).message?.includes('saved')) {
+        const errorWithAudio = err as RecordingError
+        if (errorWithAudio.audioUrl || errorWithAudio.message?.includes('saved')) {
           setError('Transcription failed. Your recording is saved.')
           setRecordingId(errorWithAudio.recordingId || targetEventId)
           setState('error')

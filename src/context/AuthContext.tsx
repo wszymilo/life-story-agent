@@ -112,7 +112,6 @@ function useAuthContext() {
 }
 
 export const AuthProvider = AuthProviderComponent
-export { useAuthContext as useAuth, AuthContext }
-
 // eslint-disable-next-line react-refresh/only-export-components
+export { useAuthContext as useAuth, AuthContext }
 export type { AuthContextType }

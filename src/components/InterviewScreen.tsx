@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
@@ -34,7 +34,7 @@ export function InterviewScreen() {
   const isLoadingRef = useRef(false)
   const { play } = useAudioPlayer()
 
-  const decryptEventData = async (eventData: EventWithQuestions): Promise<EventWithQuestions> => {
+  const decryptEventData = useCallback(async (eventData: EventWithQuestions): Promise<EventWithQuestions> => {
     if (!key) return eventData
 
     const decryptedRecordings = await Promise.all(
@@ -57,7 +57,7 @@ export function InterviewScreen() {
       recordings: decryptedRecordings,
       follow_up_questions: decryptedQuestions,
     }
-  }
+  }, [key])
 
   useEffect(() => {
     if (!eventId || isLoadingRef.current || !isReady) return
@@ -118,7 +118,7 @@ export function InterviewScreen() {
     }
 
     loadData()
-  }, [eventId, isReady, key])
+  }, [eventId, isReady, key, decryptEventData])
 
   const playQuestionAudio = async () => {
     if (!currentQuestion || !eventId) return

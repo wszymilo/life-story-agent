@@ -43,11 +43,6 @@ class AudioRecordingCreate(BaseModel):
     duration_seconds: Optional[float] = None
 
 
-class RecordingUpload(BaseModel):
-    recording_type: str = "initial_story"
-    duration_seconds: Optional[float] = None
-
-
 class AudioRecordingResponse(BaseModel):
     id: uuid.UUID
     event_id: uuid.UUID

@@ -11,7 +11,7 @@ from api.utils import (
     require_data,
 )
 from db.client import get_supabase_client
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
 from utils.date_parser import parse_date
 
@@ -90,6 +90,7 @@ async def generate_follow_up(
     request: Request,
     event_id: uuid.UUID,
     body: FollowUpRequest,
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Generate a follow-up question from a plaintext transcript."""
@@ -123,6 +124,17 @@ async def generate_follow_up(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
+        )
+
+    # Trigger question quality evaluation (sampled)
+    from services.evaluation import evaluate_question_in_background, should_evaluate
+    if should_evaluate():
+        evaluate_question_in_background(
+            background_tasks,
+            event_id=event_id_str,
+            transcript=body.transcript,
+            question_text=question.question_text,
+            existing_questions=body.existing_questions,
         )
 
     return {
@@ -167,36 +179,3 @@ async def create_question(
         "created_at": result.data[0]["created_at"],
     }
 
-
-@router.post("/{event_id}/follow-up/{question_id}/skip")
-async def skip_follow_up_question(
-    event_id: uuid.UUID,
-    question_id: uuid.UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """Mark a follow-up question as skipped (not answered)."""
-    event_id_str = str(event_id)
-    question_id_str = str(question_id)
-
-    logger.info("skip_follow_up", event_id=event_id_str, question_id=question_id_str)
-
-    supabase = await get_supabase_client()
-
-    await get_event_for_user(supabase, event_id_str, str(current_user.id))
-
-    question_response = (
-        supabase.table("follow_up_questions")
-        .select("id")
-        .eq("id", question_id_str)
-        .eq("event_id", event_id_str)
-        .execute()
-    )
-    require_data(question_response, "Question not found")
-
-    supabase.table("follow_up_questions").update(
-        {"was_answered": False}
-    ).eq("id", question_id_str).execute()
-
-    logger.info("skip_follow_up_completed", question_id=question_id_str)
-
-    return {"status": "skipped", "question_id": question_id_str}
