@@ -31,6 +31,7 @@ export function InterviewScreen() {
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
   const [error, setError] = useState<string>('')
   const [plaintextTranscript, setPlaintextTranscript] = useState<string>('')
+  const [showRecordLabel, setShowRecordLabel] = useState(true)
   const isLoadingRef = useRef(false)
   const { play } = useAudioPlayer()
 
@@ -304,9 +305,12 @@ export function InterviewScreen() {
           )}
 
           <div className="border-t pt-6">
-            <p className="text-gray-600 mb-4 text-lg">Record your answer:</p>
+            {showRecordLabel && (
+              <p className="text-gray-600 mb-4 text-lg">Record your answer:</p>
+            )}
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}
+              onRecordingStopped={() => setShowRecordLabel(false)}
               disabled={state === 'playing'}
               statusMessage={statusMessage}
             />

@@ -3,12 +3,13 @@ import { useRecorder } from '../hooks/useRecorder'
 
 interface AudioRecorderProps {
   onRecordingComplete?: (blob: Blob) => void
+  onRecordingStopped?: () => void
   disabled?: boolean
   isUploading?: boolean
   statusMessage?: string
 }
 
-export function AudioRecorder({ onRecordingComplete, disabled, isUploading, statusMessage }: AudioRecorderProps) {
+export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disabled, isUploading, statusMessage }: AudioRecorderProps) {
   const {
     startRecording,
     stopRecording,
@@ -32,6 +33,11 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleStop = () => {
+    onRecordingStopped?.()
+    stopRecording()
   }
 
   const handleReset = () => {
@@ -86,7 +92,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
 
       {isRecording && (
         <button
-          onClick={stopRecording}
+          onClick={handleStop}
           disabled={disabled}
           className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
           aria-label="Stop recording"
