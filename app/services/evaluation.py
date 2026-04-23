@@ -1,6 +1,5 @@
 """Evaluation service using LLM-as-judge."""
 
-import hashlib
 import random
 
 from api.logging_config import get_logger
@@ -152,11 +151,6 @@ def should_evaluate() -> bool:
     return random.random() < settings.eval_sample_rate
 
 
-def get_prompt_hash(prompt_text: str) -> str:
-    """Generate hash of prompt for deduplication."""
-    return hashlib.sha256(prompt_text.encode()).hexdigest()[:16]
-
-
 def evaluate_in_background(
     background_tasks: BackgroundTasks,
     event_id: str,
@@ -189,20 +183,40 @@ async def _evaluate_and_store(
     prompt_text: str,
     summary_text: str,
 ) -> None:
-    """Internal: evaluate and store result in database."""
+    """Internal: evaluate and store scores in database (content-free)."""
     result = await evaluate_output(prompt_text, summary_text, eval_type)
     if not result:
         return
 
+    await _store_scores(event_id, eval_type, result)
+
+
+async def _evaluate_question_and_store(
+    event_id: str,
+    transcript: str,
+    question_text: str,
+    existing_questions: list[str],
+) -> None:
+    """Internal: evaluate question and store scores in database (content-free)."""
+    result = await evaluate_question(transcript, question_text, existing_questions)
+    if not result:
+        return
+
+    await _store_question_scores(event_id, result)
+
+
+async def _store_scores(
+    event_id: str,
+    eval_type: str,
+    result: EvaluationScores,
+) -> None:
+    """Store evaluation scores (no content)."""
     supabase = await get_supabase_client()
 
     try:
         supabase.table("evaluation_results").insert({
             "event_id": event_id,
             "eval_type": eval_type,
-            "prompt_hash": get_prompt_hash(prompt_text),
-            "prompt_text": prompt_text[:MAX_PROMPT_LENGTH],
-            "summary_text": summary_text[:MAX_PROMPT_LENGTH],
             "factual_accuracy": result.factual_accuracy,
             "coherence": result.coherence,
             "completeness": result.completeness,
@@ -214,26 +228,17 @@ async def _evaluate_and_store(
         logger.error("eval_store_failed", error=str(e))
 
 
-async def _evaluate_question_and_store(
+async def _store_question_scores(
     event_id: str,
-    transcript: str,
-    question_text: str,
-    existing_questions: list[str],
+    result: QuestionEvaluationScores,
 ) -> None:
-    """Internal: evaluate question and store result in database."""
-    result = await evaluate_question(transcript, question_text, existing_questions)
-    if not result:
-        return
-
+    """Store question evaluation scores (no content)."""
     supabase = await get_supabase_client()
 
     try:
         supabase.table("evaluation_results").insert({
             "event_id": event_id,
             "eval_type": "question",
-            "prompt_hash": get_prompt_hash(transcript),
-            "prompt_text": transcript[:MAX_PROMPT_LENGTH],
-            "summary_text": question_text[:MAX_PROMPT_LENGTH],
             "factual_accuracy": result.relevance,
             "coherence": result.specificity,
             "completeness": result.open_endedness,
@@ -243,3 +248,12 @@ async def _evaluate_question_and_store(
         logger.info("question_eval_stored", event_id=event_id)
     except Exception as e:
         logger.error("question_eval_store_failed", error=str(e))
+
+
+async def store_evaluation_scores(
+    event_id: str,
+    eval_type: str,
+    scores: EvaluationScores,
+) -> None:
+    """Store pre-computed evaluation scores (used by meta-story flow)."""
+    await _store_scores(event_id, eval_type, scores)
