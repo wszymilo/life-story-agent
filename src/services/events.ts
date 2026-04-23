@@ -158,9 +158,11 @@ export interface MetaStorySource {
 export interface MetaStoryResult {
   title: string
   summary: string
-  _eval_payload?: {
-    sources: MetaStorySource[]
-    summary: string
+  _eval_scores?: {
+    factual_accuracy: number
+    coherence: number
+    completeness: number
+    overall_score: number
   }
 }
 

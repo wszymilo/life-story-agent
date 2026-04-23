@@ -453,11 +453,28 @@ async def generate_meta_story_endpoint(
             detail=f"Failed to generate meta-story: {str(e)}",
         )
 
-    return {
+    # Run evaluation synchronously when sampled (plaintext available here)
+    eval_scores = None
+    from services.evaluation import evaluate_output, should_evaluate
+    if should_evaluate():
+        prompt_text = "\n\n".join(
+            f"{s.get('title', '')}\n{s.get('summary', '')}\n" + "\n".join(s.get('transcripts', []))
+            for s in req.sources
+        )
+        eval_result = await evaluate_output(prompt_text, result["summary"], "meta_story")
+        if eval_result:
+            eval_scores = {
+                "factual_accuracy": eval_result.factual_accuracy,
+                "coherence": eval_result.coherence,
+                "completeness": eval_result.completeness,
+                "overall_score": eval_result.overall_score,
+            }
+
+    response = {
         "title": result["title"],
         "summary": result["summary"],
-        "_eval_payload": {
-            "sources": req.sources,
-            "summary": result["summary"],
-        },
     }
+    if eval_scores:
+        response["_eval_scores"] = eval_scores
+
+    return response

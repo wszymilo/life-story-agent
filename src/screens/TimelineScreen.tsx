@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { ErrorFallback } from '../components/ErrorFallback'
 import { listEvents, getEvent, createEvent, updateEvent, generateMetaStory, EventData } from '../services/events'
-import { createEvaluation } from '../services/evaluation'
+import { storeEvaluationScores } from '../services/evaluation'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
 import { LANGUAGE_OPTIONS } from '../services/constants'
@@ -95,7 +95,7 @@ export function TimelineScreen() {
       )
 
       // 2. Generate meta-story with decrypted sources
-      const { title, summary, _eval_payload } = await generateMetaStory(eventsData)
+      const { title, summary, _eval_scores } = await generateMetaStory(eventsData)
 
       // 3. Encrypt result
       const encryptedTitle = await encrypt(title, key)
@@ -115,18 +115,10 @@ export function TimelineScreen() {
         source_event_ids: eventIds,
       })
 
-      // 6. Trigger evaluation for meta-story (fire-and-forget)
-      if (_eval_payload) {
-        const promptText = _eval_payload.sources
-          .map((s) => `${s.title}\n${s.summary}\n${s.transcripts.join('\n')}`)
-          .join('\n\n---\n\n')
-        createEvaluation({
-          event_id: newEvent.id,
-          eval_type: 'meta_story',
-          prompt_text: promptText.slice(0, 2000),
-          summary_text: _eval_payload.summary.slice(0, 2000),
-        }).catch(() => {
-          // Silently ignore evaluation errors
+      // 6. Store pre-computed evaluation scores (fire-and-forget)
+      if (_eval_scores) {
+        storeEvaluationScores(newEvent.id, 'meta_story', _eval_scores).catch(() => {
+          // Silently ignore evaluation store errors
         })
       }
 

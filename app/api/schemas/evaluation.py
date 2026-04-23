@@ -26,28 +26,23 @@ class QuestionEvaluationScores(BaseModel):
     explanation: str = Field(default="")
 
 
-class EvaluationResultCreate(BaseModel):
-    """Input for creating an evaluation result."""
+class EvaluationScoresStore(BaseModel):
+    """Input for storing pre-computed evaluation scores."""
 
     event_id: str
     eval_type: str
-    prompt_text: Optional[str] = None
-    summary_text: Optional[str] = None
-    factual_accuracy: Optional[int] = None
-    coherence: Optional[int] = None
-    completeness: Optional[int] = None
-    overall_score: Optional[int] = None
-    evaluator_model: str = "gpt-4o"
+    factual_accuracy: int = Field(ge=1, le=5)
+    coherence: int = Field(ge=1, le=5)
+    completeness: int = Field(ge=1, le=5)
+    overall_score: int = Field(ge=1, le=5)
 
 
 class EvaluationResultResponse(BaseModel):
-    """Response for evaluation result."""
+    """Response for evaluation result (scores only)."""
 
     id: str
     event_id: str
     eval_type: str
-    prompt_text: Optional[str]
-    summary_text: Optional[str]
     factual_accuracy: Optional[int]
     coherence: Optional[int]
     completeness: Optional[int]
@@ -64,8 +59,6 @@ class EvaluationResultResponse(BaseModel):
             id=row["id"],
             event_id=row["event_id"],
             eval_type=row["eval_type"],
-            prompt_text=row.get("prompt_text"),
-            summary_text=row.get("summary_text"),
             factual_accuracy=row.get("factual_accuracy"),
             coherence=row.get("coherence"),
             completeness=row.get("completeness"),

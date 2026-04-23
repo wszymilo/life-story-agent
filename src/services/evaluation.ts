@@ -13,8 +13,6 @@ export interface EvaluationResult {
   id: string;
   event_id: string;
   eval_type: string;
-  prompt_text: string | null;
-  summary_text: string | null;
   factual_accuracy: number | null;
   coherence: number | null;
   completeness: number | null;
@@ -29,17 +27,21 @@ export async function getDashboardStats(evalType?: string): Promise<DashboardSta
   return data
 }
 
-export interface CreateEvaluationInput {
-  event_id: string
-  eval_type: string
-  prompt_text: string
-  summary_text: string
+export interface EvaluationScores {
+  factual_accuracy: number;
+  coherence: number;
+  completeness: number;
+  overall_score: number;
 }
 
-export async function createEvaluation(input: CreateEvaluationInput): Promise<void> {
-  await fetchJson<void>('/api/evaluations', {
+export async function storeEvaluationScores(
+  eventId: string,
+  evalType: string,
+  scores: EvaluationScores,
+): Promise<void> {
+  await fetchJson<void>('/api/evaluations/scores', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ event_id: eventId, eval_type: evalType, ...scores }),
   })
 }

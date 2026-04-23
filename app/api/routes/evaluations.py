@@ -1,13 +1,16 @@
 """Evaluation routes for dashboard."""
 
-import hashlib
-
 from api.deps import CurrentUser, get_current_user
 from api.logging_config import get_logger
-from api.schemas.evaluation import DashboardStats, EvaluationResultCreate, EvaluationResultResponse
+from api.schemas.evaluation import (
+    DashboardStats,
+    EvaluationResultResponse,
+    EvaluationScoresStore,
+)
 from config import get_settings
 from db.client import get_supabase_client
 from fastapi import APIRouter, Depends, HTTPException
+from services.evaluation import store_evaluation_scores
 
 router = APIRouter(prefix="/api/evaluations", tags=["evaluations"])
 logger = get_logger()
@@ -71,20 +74,23 @@ async def get_dashboard(
     )
 
 
-@router.post("", response_model=EvaluationResultResponse)
-async def create_evaluation(
-    eval_data: EvaluationResultCreate,
+@router.post("/scores")
+async def store_scores(
+    data: EvaluationScoresStore,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Create a new evaluation result."""
-    supabase = await get_supabase_client()
+    """Store pre-computed evaluation scores (content-free).
 
-    data = eval_data.model_dump()
-    data["prompt_hash"] = hashlib.sha256(data.get("prompt_text", "").encode()).hexdigest()[:16]
+    Used by meta-story flow where evaluation runs during generation
+    and scores are stored after the event is created.
+    """
+    from api.schemas.evaluation import EvaluationScores
 
-    result = supabase.table("evaluation_results").insert(data).execute()
-
-    if not result.data:
-        raise HTTPException(500, "Failed to create evaluation")
-
-    return EvaluationResultResponse.from_row(result.data[0])
+    scores = EvaluationScores(
+        factual_accuracy=data.factual_accuracy,
+        coherence=data.coherence,
+        completeness=data.completeness,
+        overall_score=data.overall_score,
+    )
+    await store_evaluation_scores(data.event_id, data.eval_type, scores)
+    return {"status": "stored"}
