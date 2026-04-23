@@ -33,7 +33,10 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
     const detail = data.detail
     let message: string
     if (Array.isArray(detail)) {
-      message = detail.map((e: any) => e.msg || String(e)).join('; ')
+      message = detail.map((e: { msg?: string } | string) => {
+        if (typeof e === 'string') return e
+        return e.msg || String(e)
+      }).join('; ')
     } else if (typeof detail === 'string') {
       message = detail
     } else {

@@ -2,7 +2,7 @@ from api.deps import CurrentUser, get_current_user
 from api.langfuse_config import init_langfuse
 from api.logging_config import RequestLoggingMiddleware, configure_logging, get_logger
 from api.rate_limit_config import limiter
-from api.routes import audio, events, interview, tts, users, evaluations
+from api.routes import events, interview, tts, users, evaluations
 from api.sentry_config import init_sentry
 from config import get_settings
 from db.client import get_supabase_client
@@ -90,7 +90,6 @@ async def get_me(current_user: CurrentUser = Depends(get_current_user)):
 
 app.include_router(users.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
-app.include_router(audio.router, prefix="/api")
 app.include_router(interview.router, prefix="/api")
 app.include_router(tts.router, prefix="/api")
 app.include_router(evaluations.router)

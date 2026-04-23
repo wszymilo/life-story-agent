@@ -14,6 +14,18 @@ class EvaluationScores(BaseModel):
     explanation: str = Field(default="")
 
 
+class QuestionEvaluationScores(BaseModel):
+    """Structured output from question quality evaluation."""
+
+    relevance: int = Field(ge=1, le=5)
+    specificity: int = Field(ge=1, le=5)
+    open_endedness: int = Field(ge=1, le=5)
+    diversity: int = Field(ge=1, le=5)
+    expected_richness: int = Field(ge=1, le=5)
+    overall_score: int = Field(ge=1, le=5)
+    explanation: str = Field(default="")
+
+
 class EvaluationResultCreate(BaseModel):
     """Input for creating an evaluation result."""
 

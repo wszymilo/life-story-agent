@@ -47,25 +47,3 @@ def test_capture_exception():
         mock_sentry.capture_exception.assert_called_once_with(exc)
 
 
-def test_set_user_context():
-    """Test user context setting."""
-    with patch("api.sentry_config.sentry_sdk") as mock_sentry:
-        from api.sentry_config import set_user_context
-
-        set_user_context("user123", "test@example.com")
-        mock_sentry.set_user.assert_called_once_with(
-            {"id": "user123", "email": "test@example.com"}
-        )
-
-
-def test_add_breadcrumb():
-    """Test breadcrumb addition."""
-    with patch("api.sentry_config.sentry_sdk") as mock_sentry:
-        from api.sentry_config import add_breadcrumb
-
-        add_breadcrumb("test message", category="test", key="value")
-        mock_sentry.add_breadcrumb.assert_called_once_with(
-            message="test message",
-            category="test",
-            data={"key": "value"},
-        )

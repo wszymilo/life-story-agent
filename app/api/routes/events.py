@@ -396,14 +396,15 @@ async def complete_event(
     # Trigger evaluation during plaintext phase
     eval_payload = result.pop("_eval_payload", None)
     if eval_payload:
-        from services.evaluation import evaluate_in_background
-        evaluate_in_background(
-            background_tasks,
-            event_id=str(event_id),
-            eval_type="summary",
-            prompt_text="\n\n".join(eval_payload["transcripts"]),
-            summary_text=eval_payload["summary"],
-        )
+        from services.evaluation import evaluate_in_background, should_evaluate
+        if should_evaluate():
+            evaluate_in_background(
+                background_tasks,
+                event_id=str(event_id),
+                eval_type="summary",
+                prompt_text="\n\n".join(eval_payload["transcripts"]),
+                summary_text=eval_payload["summary"],
+            )
 
     return result
 
@@ -455,4 +456,8 @@ async def generate_meta_story_endpoint(
     return {
         "title": result["title"],
         "summary": result["summary"],
+        "_eval_payload": {
+            "sources": req.sources,
+            "summary": result["summary"],
+        },
     }

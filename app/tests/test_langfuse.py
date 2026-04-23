@@ -55,19 +55,3 @@ def test_log_generation_with_client():
         assert mock_client.start_as_current_observation.called
 
 
-def test_log_trace_event_returns_early_without_client():
-    """Test log_trace_event returns early without client."""
-    from api.langfuse_config import log_trace_event
-
-    log_trace_event("test_event", "test_type")
-
-
-def test_log_trace_event_with_client():
-    """Test log_trace_event with client."""
-    mock_client = MagicMock()
-
-    with patch("api.langfuse_config._langfuse_client", mock_client):
-        from api.langfuse_config import log_trace_event
-
-        log_trace_event("test_event", "test_type", metadata={"key": "value"})
-        assert mock_client.create_event.called

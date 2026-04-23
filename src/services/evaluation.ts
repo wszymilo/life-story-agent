@@ -23,7 +23,23 @@ export interface EvaluationResult {
   created_at: string;
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const data = await fetchJson<DashboardStats>('/api/evaluations/dashboard')
+export async function getDashboardStats(evalType?: string): Promise<DashboardStats> {
+  const url = evalType ? `/api/evaluations/dashboard?eval_type=${encodeURIComponent(evalType)}` : '/api/evaluations/dashboard'
+  const data = await fetchJson<DashboardStats>(url)
   return data
+}
+
+export interface CreateEvaluationInput {
+  event_id: string
+  eval_type: string
+  prompt_text: string
+  summary_text: string
+}
+
+export async function createEvaluation(input: CreateEvaluationInput): Promise<void> {
+  await fetchJson<void>('/api/evaluations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }

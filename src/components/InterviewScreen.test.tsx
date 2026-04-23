@@ -4,7 +4,6 @@ import { InterviewScreen } from './InterviewScreen'
 
 const mockAnalyzeEvent = vi.fn()
 const mockGenerateFollowUp = vi.fn()
-const mockSkipFollowUp = vi.fn()
 const mockGetEventWithQuestions = vi.fn()
 const mockGenerateTTS = vi.fn()
 const mockAddRecording = vi.fn()
@@ -19,7 +18,6 @@ vi.mock('react-router-dom', () => ({
 vi.mock('../services/interview', () => ({
   analyzeEvent: (...args: unknown[]) => mockAnalyzeEvent(...args),
   generateFollowUp: (...args: unknown[]) => mockGenerateFollowUp(...args),
-  skipFollowUp: (...args: unknown[]) => mockSkipFollowUp(...args),
   getEventWithQuestions: (...args: unknown[]) => mockGetEventWithQuestions(...args),
   generateTTS: (...args: unknown[]) => mockGenerateTTS(...args),
   createQuestion: (...args: unknown[]) => mockCreateQuestion(...args),

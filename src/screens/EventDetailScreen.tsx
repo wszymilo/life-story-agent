@@ -132,7 +132,7 @@ export function EventDetailScreen() {
           alert('Failed to play audio')
         },
       })
-    } catch (err) {
+    } catch {
       setPlayingRecordingId(null)
       alert('Failed to play audio')
     }
