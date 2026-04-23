@@ -97,8 +97,6 @@ export function InterviewScreen() {
             const storedQuestion = await createQuestion(eventId, {
               question_text: encryptedQuestion,
               question_type: question.question_type,
-              context: question.context,
-              target_area: question.target_area,
             })
             setCurrentQuestion({
               ...question,
@@ -173,8 +171,6 @@ export function InterviewScreen() {
       const storedQuestion = await createQuestion(eventId, {
         question_text: encryptedQuestion,
         question_type: question.question_type,
-        context: question.context,
-        target_area: question.target_area,
       })
       setCurrentQuestion({
         ...question,

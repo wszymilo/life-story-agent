@@ -1,12 +1,11 @@
 import { fetchApi, fetchJson } from './api'
+import type { AudioRecording } from './events'
 
 export interface FollowUpQuestion {
   id: string
   event_id: string
   question_text: string
   question_type?: string
-  context?: string
-  target_area?: string
   was_answered: boolean
   audio_url?: string | null
   sequence_order: number
@@ -23,6 +22,7 @@ export interface EventWithQuestions {
   summary: string | null
   created_at: string
   follow_up_questions: FollowUpQuestion[]
+  recordings?: AudioRecording[]
 }
 
 export interface TranscriptAnalysis {
@@ -59,8 +59,6 @@ export async function createQuestion(
   question: {
     question_text: string
     question_type?: string
-    context?: string
-    target_area?: string
   }
 ): Promise<FollowUpQuestion> {
   return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/questions`, {

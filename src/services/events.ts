@@ -18,6 +18,7 @@ export interface EventData {
   summary: string | null
   created_at: string
   updated_at: string
+  source_event_ids?: string[] | null
   recordings?: AudioRecording[]
 }
 
@@ -142,10 +143,17 @@ export async function completeEvent(
   })
 }
 
-export async function generateMetaStory(eventIds: string[]): Promise<{ id: string }> {
-  return fetchJson<{ id: string }>('/api/events/meta-generate', {
+export interface MetaStorySource {
+  title: string
+  summary: string
+  date: string
+  transcripts: string[]
+}
+
+export async function generateMetaStory(sources: MetaStorySource[]): Promise<{ title: string; summary: string }> {
+  return fetchJson<{ title: string; summary: string }>('/api/events/meta-generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_ids: eventIds }),
+    body: JSON.stringify({ sources }),
   })
 }

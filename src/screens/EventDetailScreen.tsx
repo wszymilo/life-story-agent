@@ -9,14 +9,16 @@ import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import { useEventExport } from '../hooks/useEventExport'
 import { useEncryption } from '../hooks/useEncryption'
 import { decrypt } from '../lib/crypto'
+import { extractErrorMessage } from '../lib/errors'
 import { formatDate, formatDuration } from '../lib/date'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
-  const { key } = useEncryption()
+  const { key, isReady } = useEncryption()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [decrypting, setDecrypting] = useState(false)
   const [error, setError] = useState<string>('')
   const [deleting, setDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -26,7 +28,7 @@ export function EventDetailScreen() {
   const { exporting, downloadExport } = useEventExport()
 
   useEffect(() => {
-    if (!eventId) return
+    if (!eventId || !isReady) return
 
     const loadEvent = async () => {
       try {
@@ -35,6 +37,7 @@ export function EventDetailScreen() {
         const data = await getEvent(eventId)
 
         if (key) {
+          setDecrypting(true)
           // Decrypt title, summary, and transcripts
           const decryptedTitle = data.title ? await decrypt(data.title, key) : null
           const decryptedSummary = data.summary ? await decrypt(data.summary, key) : null
@@ -51,6 +54,7 @@ export function EventDetailScreen() {
             summary: decryptedSummary,
             recordings: decryptedRecordings,
           })
+          setDecrypting(false)
         } else {
           setEvent(data)
         }
@@ -62,7 +66,7 @@ export function EventDetailScreen() {
     }
 
     loadEvent()
-  }, [eventId, key])
+  }, [eventId, key, isReady])
 
   const handleDelete = () => {
     if (!event?.id) return
@@ -136,7 +140,7 @@ export function EventDetailScreen() {
 
 
 
-  if (loading) {
+  if (loading || decrypting || !isReady) {
     return <LoadingScreen />
   }
 

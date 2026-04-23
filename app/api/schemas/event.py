@@ -67,7 +67,7 @@ class EventWithRecordingsResponse(EventResponse):
 
 
 class MetaGenerateRequest(BaseModel):
-    event_ids: list[str]
+    sources: list[dict[str, object]]
 
 
 class TranscriptUpdateRequest(BaseModel):

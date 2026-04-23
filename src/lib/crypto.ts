@@ -52,22 +52,27 @@ export async function encrypt(plaintext: string, key: CryptoKey): Promise<string
 }
 
 export async function decrypt(ciphertext: string, key: CryptoKey): Promise<string> {
-  const combined = new Uint8Array(base64ToArrayBuffer(ciphertext))
+  try {
+    const combined = new Uint8Array(base64ToArrayBuffer(ciphertext))
 
-  if (combined.byteLength < IV_LENGTH) {
-    throw new Error('Invalid ciphertext: too short')
+    if (combined.byteLength < IV_LENGTH) {
+      return ciphertext
+    }
+
+    const iv = combined.slice(0, IV_LENGTH)
+    const data = combined.slice(IV_LENGTH)
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      data
+    )
+
+    return new TextDecoder().decode(decrypted)
+  } catch {
+    // If decryption fails (e.g., plaintext data like meta-stories), return as-is
+    return ciphertext
   }
-
-  const iv = combined.slice(0, IV_LENGTH)
-  const data = combined.slice(IV_LENGTH)
-
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    data
-  )
-
-  return new TextDecoder().decode(decrypted)
 }
 
 export async function exportKey(key: CryptoKey): Promise<string> {

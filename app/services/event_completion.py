@@ -4,11 +4,8 @@ from api.logging_config import get_logger
 from api.utils import (
     get_event_for_user,
     get_user_language,
-    require_data,
-    serialize_update_data,
 )
 from fastapi import HTTPException, status
-from services.evaluation import evaluate_in_background
 from services.summary_generator import generate_summary
 
 logger = get_logger()
@@ -56,7 +53,6 @@ async def complete_event_session(
         )
 
     # Wire evaluation during plaintext phase
-    from fastapi import BackgroundTasks
     # Note: BackgroundTasks is not available here directly;
     # evaluation will be triggered by the route handler after this returns.
 

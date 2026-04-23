@@ -54,18 +54,28 @@ describe('crypto utilities', () => {
     expect(decrypted).toBe(plaintext)
   })
 
-  it('throws on invalid ciphertext', async () => {
+  it('returns plaintext unchanged on invalid ciphertext', async () => {
     const key = await generateKey()
-    await expect(decrypt('invalid', key)).rejects.toThrow()
+    const result = await decrypt('invalid', key)
+    expect(result).toBe('invalid')
   })
 
-  it('throws on tampered ciphertext', async () => {
+  it('returns tampered ciphertext unchanged', async () => {
     const key = await generateKey()
     const ciphertext = await encrypt('secret', key)
 
     // Tamper with the last character
     const tampered = ciphertext.slice(0, -1) + 'X'
 
-    await expect(decrypt(tampered, key)).rejects.toThrow()
+    const result = await decrypt(tampered, key)
+    expect(result).toBe(tampered)
+  })
+
+  it('returns plaintext meta-story title unchanged', async () => {
+    const key = await generateKey()
+    const metaTitle = 'Threads of Resilience: A Journey of Storytelling'
+
+    const result = await decrypt(metaTitle, key)
+    expect(result).toBe(metaTitle)
   })
 })

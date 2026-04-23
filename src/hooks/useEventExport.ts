@@ -1,9 +1,61 @@
 import { useState, useCallback } from 'react'
 import JSZip from 'jszip'
+import unidecode from 'unidecode'
 import { EventData, AudioRecording, streamAudio } from '../services/events'
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9\u00C0-\u017F\s-]/g, '').replace(/\s+/g, '_').slice(0, 50) || 'story'
+  // First transliterate Unicode characters to ASCII equivalents
+  // e.g., "Motocyklowa Odysseja przez Norwegię" → "Motocyklowa Odysseja przez Norwegie"
+  // e.g., "Zażółć gęślą jaźń" → "Zazolc gesla jazn"
+  let sanitized = unidecode(name)
+
+  // Then remove invalid filename characters for Windows/Mac/Linux
+  // Also replace commas, periods, and spaces with underscores for cleaner filenames
+  sanitized = sanitized.replace(/[<>:"/\\|?*,]/g, '_')
+  sanitized = sanitized.replace(/\s+/g, '_')
+  sanitized = sanitized.trim().replace(/^[.]+|[.]+$/g, '').replace(/^_+|_+$/g, '')
+  if (!sanitized) {
+    sanitized = 'untitled'
+  }
+  return sanitized.slice(0, 100)
+}
+
+function generateMarkdown(title: string, summary: string | null, recordings: AudioRecording[]): string {
+  const mdLines: string[] = [
+    `# ${title}`,
+    '',
+  ]
+
+  if (summary) {
+    mdLines.push('## Summary')
+    mdLines.push('')
+    mdLines.push(summary)
+    mdLines.push('')
+  }
+
+  mdLines.push('---')
+  mdLines.push('')
+  mdLines.push('## Recordings')
+  mdLines.push('')
+
+  for (const rec of recordings) {
+    const recType = rec.recording_type || 'unknown'
+    const created = rec.created_at
+      ? new Date(rec.created_at).toISOString()
+      : ''
+    if (created) {
+      mdLines.push(`- **${recType}** - ${created}`)
+    } else {
+      mdLines.push(`- **${recType}**`)
+    }
+  }
+
+  mdLines.push('')
+  mdLines.push('---')
+  mdLines.push('')
+  mdLines.push('*Exported from Life Story Agent*')
+
+  return mdLines.join('\n')
 }
 
 export function useEventExport() {
@@ -16,37 +68,49 @@ export function useEventExport() {
     try {
       const zip = new JSZip()
 
-      // Build markdown
-      const mdLines: string[] = [`# ${event.title || 'Untitled Memory'}`]
-      if (event.time_anchor_date || event.time_anchor) {
-        mdLines.push(`\n**Date:** ${event.time_anchor_date || event.time_anchor}`)
-      }
-      if (event.place) {
-        mdLines.push(`\n**Place:** ${event.place}`)
-      }
-      if (event.summary) {
-        mdLines.push(`\n## Summary\n\n${event.summary}`)
-      }
+      const title = event.title || 'Untitled Story'
+      const safeTitle = sanitizeFilename(title)
 
-      mdLines.push('\n## Sources\n')
-      for (const recording of event.recordings || []) {
-        mdLines.push(`\n### ${recording.recording_type === 'initial_story' ? 'Initial Story' : 'Follow-up Answer'}`)
-        mdLines.push(`- Recorded: ${new Date(recording.created_at).toLocaleString()}`)
-        if (recording.transcript) {
-          mdLines.push(`\n${recording.transcript}`)
+      // Generate markdown and add to root
+      const mdContent = generateMarkdown(title, event.summary, event.recordings || [])
+      zip.file(`${safeTitle}.md`, mdContent)
+
+      // Sort recordings into initial story and follow-ups
+      const initialStory = event.recordings?.find(
+        (r) => r.recording_type === 'initial_story'
+      )
+      const additionalRecordings =
+        event.recordings?.filter((r) => r.recording_type !== 'initial_story') || []
+
+      // Add initial story to artifacts/
+      if (initialStory) {
+        if (initialStory.transcript) {
+          zip.file(`artifacts/${safeTitle}.txt`, initialStory.transcript)
+        }
+        if (initialStory.audio_url) {
+          try {
+            const blob = await streamAudio(event.id, initialStory.id)
+            zip.file(`artifacts/${safeTitle}.webm`, blob)
+          } catch {
+            // Skip audio files that fail to load
+          }
         }
       }
 
-      zip.file('story.md', mdLines.join('\n'))
-
-      // Add audio files
-      for (const recording of event.recordings || []) {
-        if (!recording.audio_url) continue
-        try {
-          const blob = await streamAudio(event.id, recording.id)
-          zip.file(`recording_${recording.id}.webm`, blob)
-        } catch {
-          // Skip audio files that fail to load
+      // Add follow-ups to artifacts/additional/
+      for (let i = 0; i < additionalRecordings.length; i++) {
+        const rec = additionalRecordings[i]
+        const baseName = `follow_up_${i + 1}`
+        if (rec.transcript) {
+          zip.file(`artifacts/additional/${baseName}.txt`, rec.transcript)
+        }
+        if (rec.audio_url) {
+          try {
+            const blob = await streamAudio(event.id, rec.id)
+            zip.file(`artifacts/additional/${baseName}.webm`, blob)
+          } catch {
+            // Skip audio files that fail to load
+          }
         }
       }
 
@@ -54,7 +118,7 @@ export function useEventExport() {
       const url = URL.createObjectURL(zipBlob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${sanitizeFilename(event.title || 'story')}.zip`
+      a.download = `${safeTitle}.zip`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

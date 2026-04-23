@@ -199,7 +199,7 @@ describe('events service', () => {
       const completedEvent = { id: 'evt-1', title: 'My Story', summary: 'Summary text', status: 'completed' }
       mockFetch.mockResolvedValueOnce(createFetchMock({ json: () => Promise.resolve(completedEvent) }))
 
-      const result = await completeEvent('evt-1')
+      const result = await completeEvent('evt-1', [], [])
 
       expect(result).toEqual(completedEvent)
       expect(result.status).toBe('completed')
@@ -208,7 +208,7 @@ describe('events service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
 
-      await expect(completeEvent('evt-1')).rejects.toThrow()
+      await expect(completeEvent('evt-1', [], [])).rejects.toThrow()
     })
   })
 })

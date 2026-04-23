@@ -168,9 +168,12 @@ async def delete_event(
         except Exception:
             pass
 
+    supabase.table("evaluation_results").delete().eq("event_id", event_id_str).execute()
     supabase.table("audio_recordings").delete().eq("event_id", event_id_str).execute()
     supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).execute()
     supabase.table("events").delete().eq("id", event_id_str).execute()
+
+    return {"status": "deleted", "event_id": event_id_str}
 
 
 @router.get("/{event_id}/recordings", response_model=list[AudioRecordingResponse])
@@ -405,35 +408,37 @@ async def complete_event(
     return result
 
 
-@router.post("/meta-generate", status_code=status.HTTP_201_CREATED)
+@router.post("/meta-generate")
 async def generate_meta_story_endpoint(
     req: MetaGenerateRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Generate a meta-story from multiple selected events."""
+    """Generate a meta-story from multiple decrypted event sources.
+
+    Client sends decrypted sources (title, summary, transcripts).
+    Backend generates combined narrative via LLM and returns plaintext.
+    Client encrypts result before storing.
+    """
     settings = get_settings()
 
-    if len(req.event_ids) < 2:
+    if len(req.sources) < 2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least 2 events required",
+            detail="At least 2 sources required",
         )
 
-    if len(req.event_ids) > settings.max_meta_story_select:
+    if len(req.sources) > settings.max_meta_story_select:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum {settings.max_meta_story_select} events allowed",
+            detail=f"Maximum {settings.max_meta_story_select} sources allowed",
         )
 
     supabase = await get_supabase_client()
-
-    # Get user's preferred language
     user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
         result = await generate_meta_story(
-            user_id=str(current_user.id),
-            event_ids=req.event_ids,
+            sources=req.sources,
             language=user_language,
         )
     except ValueError as e:
@@ -447,23 +452,7 @@ async def generate_meta_story_endpoint(
             detail=f"Failed to generate meta-story: {str(e)}",
         )
 
-    supabase = await get_supabase_client()
-
-    new_event = {
-        "user_id": str(current_user.id),
+    return {
         "title": result["title"],
         "summary": result["summary"],
-        "status": "complete",
-        "time_anchor_date": result["time_anchor_date"],
-        "source_event_ids": result["source_event_ids"],
     }
-
-    response = supabase.table("events").insert(new_event).execute()
-
-    if not response.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create event",
-        )
-
-    return {"id": response.data[0]["id"]}

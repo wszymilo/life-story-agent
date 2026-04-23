@@ -7,13 +7,14 @@ import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { ErrorFallback } from '../components/ErrorFallback'
-import { listEvents, generateMetaStory, EventData } from '../services/events'
+import { listEvents, getEvent, createEvent, updateEvent, generateMetaStory, EventData } from '../services/events'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
 import { LANGUAGE_OPTIONS } from '../services/constants'
 import { useEventSelection } from '../hooks/useEventSelection'
 import { useEncryption } from '../hooks/useEncryption'
-import { decrypt } from '../lib/crypto'
+import { encrypt, decrypt } from '../lib/crypto'
+import { extractErrorMessage } from '../lib/errors'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
@@ -67,12 +68,55 @@ export function TimelineScreen() {
   }
 
   const handleCombineStories = async () => {
-    if (selectedIds.size < 2 || generating) return
+    if (selectedIds.size < 2 || generating || !key) return
 
     setGenerating(true)
     try {
-      const result = await generateMetaStory(Array.from(selectedIds))
-      navigate(`/event/${result.id}`)
+      // 1. Fetch and decrypt selected events
+      const eventIds = Array.from(selectedIds)
+      const eventsData = await Promise.all(
+        eventIds.map(async (id) => {
+          const event = await getEvent(id)
+          const decryptedTitle = event.title ? await decrypt(event.title, key) : null
+          const decryptedSummary = event.summary ? await decrypt(event.summary, key) : null
+          const decryptedTranscripts = await Promise.all(
+            (event.recordings || [])
+              .filter((r): r is typeof r & { transcript: string } => !!r.transcript)
+              .map(async (r) => (r.transcript ? await decrypt(r.transcript, key) : ''))
+          )
+          return {
+            title: decryptedTitle || 'Untitled Memory',
+            summary: decryptedSummary || '',
+            date: event.time_anchor_date || event.time_anchor || event.created_at?.slice(0, 10) || '',
+            transcripts: decryptedTranscripts,
+          }
+        })
+      )
+
+      // 2. Generate meta-story with decrypted sources
+      const { title, summary } = await generateMetaStory(eventsData)
+
+      // 3. Encrypt result
+      const encryptedTitle = await encrypt(title, key)
+      const encryptedSummary = await encrypt(summary, key)
+
+      // 4. Create event with encrypted data
+      const today = new Date().toISOString().split('T')[0]
+      const newEvent = await createEvent({
+        title: encryptedTitle,
+        time_anchor_date: today,
+      })
+
+      // 5. Store encrypted summary and source_event_ids
+      await updateEvent(newEvent.id, {
+        summary: encryptedSummary,
+        status: 'complete',
+        source_event_ids: eventIds,
+      })
+
+      // 6. Navigate to new event
+      clearSelection()
+      navigate(`/event/${newEvent.id}`)
     } catch (err) {
       alert(extractErrorMessage(err, 'Failed to generate meta-story'))
     } finally {
@@ -94,18 +138,21 @@ export function TimelineScreen() {
   }
 
   useEffect(() => {
+    if (!isReady) return
+
     const loadEvents = async () => {
       try {
         setLoading(true)
         setError('')
         const data = await listEvents()
 
-        // Decrypt titles if encryption key is available
+        // Decrypt titles and summaries if encryption key is available
         if (key) {
           const decryptedEvents = await Promise.all(
             data.map(async (event) => ({
               ...event,
               title: event.title ? await decrypt(event.title, key) : null,
+              summary: event.summary ? await decrypt(event.summary, key) : null,
             }))
           )
           setEvents(decryptedEvents)
@@ -119,9 +166,9 @@ export function TimelineScreen() {
       }
     }
     loadEvents()
-  }, [key])
+  }, [key, isReady])
 
-  if (loading) {
+  if (!isReady || loading) {
     return <LoadingScreen message="Loading memories..." />
   }
 

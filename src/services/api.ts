@@ -30,7 +30,16 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
   const response = await fetchApi(url, options)
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
-    throw new Error(data.detail || `Request failed: ${response.status}`)
+    const detail = data.detail
+    let message: string
+    if (Array.isArray(detail)) {
+      message = detail.map((e: any) => e.msg || String(e)).join('; ')
+    } else if (typeof detail === 'string') {
+      message = detail
+    } else {
+      message = `Request failed: ${response.status}`
+    }
+    throw new Error(message)
   }
   return response.json()
 }

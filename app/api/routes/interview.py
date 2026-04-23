@@ -128,8 +128,6 @@ async def generate_follow_up(
     return {
         "question_text": question.question_text,
         "question_type": question.question_type,
-        "context": question.context,
-        "target_area": question.target_area,
     }
 
 
@@ -164,9 +162,9 @@ async def create_question(
     return {
         "id": result.data[0]["id"],
         "question_text": body.question_text,
-        "question_type": body.question_type,
-        "context": body.context,
-        "target_area": body.target_area,
+        "sequence_order": sequence_order,
+        "was_answered": False,
+        "created_at": result.data[0]["created_at"],
     }
 
 
