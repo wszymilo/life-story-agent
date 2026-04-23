@@ -58,6 +58,7 @@ export class MockMediaRecorder {
   }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function createMockStream(): MockMediaStream {
   return new MockMediaStream([new MockMediaTrack()])
 }

@@ -1,3 +1,5 @@
+import { fetchJson } from './api'
+
 export interface DashboardStats {
   total_evaluations: number;
   avg_factual_accuracy: number | null;
@@ -21,19 +23,23 @@ export interface EvaluationResult {
   created_at: string;
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const response = await fetch('/api/evaluations/dashboard', {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    if (response.status === 403) {
-      throw new Error('Admin access only');
-    }
-    throw new Error('Failed to fetch dashboard');
-  }
-  
-  return response.json();
+export async function getDashboardStats(evalType?: string): Promise<DashboardStats> {
+  const url = evalType ? `/api/evaluations/dashboard?eval_type=${encodeURIComponent(evalType)}` : '/api/evaluations/dashboard'
+  const data = await fetchJson<DashboardStats>(url)
+  return data
+}
+
+export interface CreateEvaluationInput {
+  event_id: string
+  eval_type: string
+  prompt_text: string
+  summary_text: string
+}
+
+export async function createEvaluation(input: CreateEvaluationInput): Promise<void> {
+  await fetchJson<void>('/api/evaluations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }

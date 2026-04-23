@@ -77,6 +77,7 @@ export function ConfirmDialog({
         </p>
         <div className="flex flex-col gap-3">
           <button
+            type="button"
             onClick={onConfirm}
             disabled={loading}
             className={`w-full py-3 min-h-12 text-lg rounded-lg font-medium disabled:opacity-50 ${
@@ -88,6 +89,7 @@ export function ConfirmDialog({
             {loading ? 'Processing...' : confirmLabel}
           </button>
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             className="w-full py-3 min-h-12 text-lg rounded-lg font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50"

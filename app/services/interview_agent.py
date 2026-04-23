@@ -5,6 +5,7 @@ from api.logging_config import get_logger
 from api.schemas.interview import FollowUpQuestion, TranscriptAnalysis
 from config import get_settings
 from openai import AsyncOpenAI
+from services.openai_utils import raise_openai_error
 
 settings = get_settings()
 logger = get_logger()
@@ -109,11 +110,7 @@ The transcript is in {display_language} - extract information accordingly."""
             error_type=type(e).__name__,
         )
 
-        if "api_key" in err_msg.lower():
-            raise RuntimeError("Analysis failed: Invalid API key")
-        if "rate_limit" in err_msg.lower():
-            raise RuntimeError("Analysis failed: Rate limit exceeded")
-        raise RuntimeError(f"Analysis failed: {err_msg}")
+        raise_openai_error(e, "Analysis")
 
 
 async def generate_follow_up_question(
@@ -214,8 +211,4 @@ Avoid questions that have already been asked (see existing questions below).{exi
             error_type=type(e).__name__,
         )
 
-        if "api_key" in err_msg.lower():
-            raise RuntimeError("Question generation failed: Invalid API key")
-        if "rate_limit" in err_msg.lower():
-            raise RuntimeError("Question generation failed: Rate limit exceeded")
-        raise RuntimeError(f"Question generation failed: {err_msg}")
+        raise_openai_error(e, "Question generation")

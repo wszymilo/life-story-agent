@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   analyzeEvent,
   generateFollowUp,
-  skipFollowUp,
   getEventWithQuestions,
   generateTTS,
 } from './interview'
@@ -38,7 +37,7 @@ describe('interview service', () => {
       }
       mockFetch.mockResolvedValueOnce(createFetchMock({ json: () => Promise.resolve(mockAnalysis) }))
 
-      const result = await analyzeEvent('evt-1')
+      const result = await analyzeEvent('evt-1', 'Test transcript content')
 
       expect(result).toEqual(mockAnalysis)
       expect(mockFetch).toHaveBeenCalledWith(
@@ -50,7 +49,7 @@ describe('interview service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Analysis failed', 500))
 
-      await expect(analyzeEvent('evt-1')).rejects.toThrow()
+      await expect(analyzeEvent('evt-1', 'Test transcript content')).rejects.toThrow()
     })
   })
 
@@ -66,7 +65,7 @@ describe('interview service', () => {
       }
       mockFetch.mockResolvedValueOnce(createFetchMock({ json: () => Promise.resolve(mockQuestion) }))
 
-      const result = await generateFollowUp('evt-1')
+      const result = await generateFollowUp('evt-1', 'Test transcript')
 
       expect(result.question_text).toBe('What happened next?')
     })
@@ -74,26 +73,7 @@ describe('interview service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Failed to generate', 500))
 
-      await expect(generateFollowUp('evt-1')).rejects.toThrow()
-    })
-  })
-
-  describe('skipFollowUp', () => {
-    it('skips follow-up question', async () => {
-      mockFetch.mockResolvedValueOnce(createFetchMock({ status: 204 }))
-
-      await skipFollowUp('evt-1', 'q-1')
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/follow-up/q-1/skip',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('throws on error', async () => {
-      mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
-
-      await expect(skipFollowUp('evt-1', 'q-1')).rejects.toThrow()
+      await expect(generateFollowUp('evt-1', 'Test transcript')).rejects.toThrow()
     })
   })
 

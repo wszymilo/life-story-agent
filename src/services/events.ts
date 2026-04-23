@@ -1,4 +1,9 @@
-import { getAuthHeader, fetchApi } from './api'
+import { fetchApi, fetchJson } from './api'
+
+export interface RecordingError extends Error {
+  audioUrl?: string
+  recordingId?: string
+}
 
 export interface CreateEventInput {
   title: string
@@ -18,6 +23,7 @@ export interface EventData {
   summary: string | null
   created_at: string
   updated_at: string
+  source_event_ids?: string[] | null
   recordings?: AudioRecording[]
 }
 
@@ -34,44 +40,27 @@ export interface AudioRecording {
 }
 
 export async function createEvent(data: CreateEventInput): Promise<EventData> {
-  const response = await fetchApi('/api/events/', {
+  return fetchJson<EventData>('/api/events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    throw new Error('Failed to create event')
-  }
-  return response.json()
 }
 
 export async function getEvent(eventId: string): Promise<EventData> {
-  const response = await fetchApi(`/api/events/${eventId}/`)
-  if (!response.ok) {
-    throw new Error('Failed to fetch event')
-  }
-  return response.json()
+  return fetchJson<EventData>(`/api/events/${eventId}`)
 }
 
 export async function updateEvent(eventId: string, data: Partial<EventData>): Promise<EventData> {
-  const response = await fetchApi(`/api/events/${eventId}/`, {
+  return fetchJson<EventData>(`/api/events/${eventId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    throw new Error('Failed to update event')
-  }
-  return response.json()
 }
 
 export async function streamAudio(eventId: string, recordingId: string): Promise<Blob> {
-  const authHeaders = await getAuthHeader()
-  const response = await fetch(`/api/events/${eventId}/recordings/${recordingId}/audio`, {
-    method: 'GET',
-    headers: authHeaders,
-    credentials: 'include',
-  })
+  const response = await fetchApi(`/api/events/${eventId}/recordings/${recordingId}/audio`)
   if (!response.ok) {
     throw new Error('Failed to load audio')
   }
@@ -79,15 +68,11 @@ export async function streamAudio(eventId: string, recordingId: string): Promise
 }
 
 export async function listEvents(): Promise<EventData[]> {
-  const response = await fetchApi('/api/events/')
-  if (!response.ok) {
-    throw new Error('Failed to list events')
-  }
-  return response.json()
+  return fetchJson<EventData[]>('/api/events')
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {
-  const response = await fetchApi(`/api/events/${eventId}/`, { method: 'DELETE' })
+  const response = await fetchApi(`/api/events/${eventId}`, { method: 'DELETE' })
   if (!response.ok) {
     throw new Error('Failed to delete event')
   }
@@ -99,7 +84,6 @@ export async function addRecording(
   recordingType: string = 'initial_story',
   durationSeconds?: number
 ): Promise<AudioRecording> {
-  const authHeaders = await getAuthHeader()
   const formData = new FormData()
   formData.append('file', audioBlob, 'recording.webm')
   formData.append('recording_type', recordingType)
@@ -107,32 +91,36 @@ export async function addRecording(
     formData.append('duration_seconds', String(durationSeconds))
   }
 
-  const response = await fetch(`/api/events/${eventId}/recordings/`, {
+  const response = await fetchApi(`/api/events/${eventId}/recordings`, {
     method: 'POST',
-    headers: authHeaders,
     body: formData,
-    credentials: 'include',
   })
 
   const result = await response.json()
   if (!response.ok) {
     const error = new Error(result.detail || 'Failed to add recording')
-    ;(error as any).audioUrl = result.audio_url
-    ;(error as any).recordingId = result.id
+    ;(error as RecordingError).audioUrl = result.audio_url
+    ;(error as RecordingError).recordingId = result.id
     throw error
   }
   return result
 }
 
+export async function updateRecordingTranscript(
+  recordingId: string,
+  transcript: string
+): Promise<AudioRecording> {
+  return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcript`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
+  })
+}
+
 export async function retryTranscribe(recordingId: string): Promise<AudioRecording> {
-  const response = await fetchApi(`/api/events/recordings/${recordingId}/transcribe/`, {
+  return fetchJson<AudioRecording>(`/api/events/recordings/${recordingId}/transcribe`, {
     method: 'POST',
   })
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.detail || 'Failed to retry transcription')
-  }
-  return response.json()
 }
 
 export interface CompletedEvent {
@@ -140,54 +128,46 @@ export interface CompletedEvent {
   title: string
   summary: string
   status: string
+  time_anchor_date: string | null
 }
 
-export async function completeEvent(eventId: string): Promise<CompletedEvent> {
-  const response = await fetchApi(`/api/events/${eventId}/complete/`, {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.detail || 'Failed to complete event')
-  }
-  return response.json()
+export interface QuestionAnswer {
+  question: string
+  answer: string
 }
 
-export interface ExportResult {
-  blob: Blob
-  filename: string
-}
-
-export async function exportEvent(eventId: string): Promise<ExportResult> {
-  const authHeaders = await getAuthHeader()
-  const response = await fetch(`/api/events/${eventId}/export`, {
-    method: 'GET',
-    headers: authHeaders,
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    throw new Error('Failed to export event')
-  }
-  
-  // Extract filename from Content-Disposition header
-  // Format: attachment; filename="Motocyklowa_Odysseja_przez_Norwegie_{id}.zip"
-  const contentDisposition = response.headers.get('Content-Disposition') || ''
-  const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/)
-  const filename = filenameMatch ? filenameMatch[1] : `${eventId}.zip`
-  
-  const blob = await response.blob()
-  return { blob, filename }
-}
-
-export async function generateMetaStory(eventIds: string[]): Promise<{ id: string }> {
-  const response = await fetchApi('/api/events/meta-generate', {
+export async function completeEvent(
+  eventId: string,
+  transcripts: string[],
+  questionsAndAnswers: QuestionAnswer[]
+): Promise<CompletedEvent> {
+  return fetchJson<CompletedEvent>(`/api/events/${eventId}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_ids: eventIds }),
+    body: JSON.stringify({ transcripts, questions_and_answers: questionsAndAnswers }),
   })
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.detail || 'Failed to generate meta-story')
+}
+
+export interface MetaStorySource {
+  title: string
+  summary: string
+  date: string
+  transcripts: string[]
+}
+
+export interface MetaStoryResult {
+  title: string
+  summary: string
+  _eval_payload?: {
+    sources: MetaStorySource[]
+    summary: string
   }
-  return response.json()
+}
+
+export async function generateMetaStory(sources: MetaStorySource[]): Promise<MetaStoryResult> {
+  return fetchJson<MetaStoryResult>('/api/events/meta-generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sources }),
+  })
 }

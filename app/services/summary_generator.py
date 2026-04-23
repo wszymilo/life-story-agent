@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from api.langfuse_config import log_generation
 from api.logging_config import get_logger
-from api.schemas.summary import SummaryWithTitle
+from api.schemas.summary import GroundingValidation, SummaryWithTitle
 from config import get_settings
 from openai import AsyncOpenAI
 
@@ -166,7 +166,7 @@ Do NOT add any information not present in the source material."""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Create a summary from this life story content:\n\n{content}"}
@@ -187,7 +187,10 @@ async def _validate_grounding(
     source_content: str,
     language: str
 ) -> tuple[bool, Optional[str]]:
-    """Reviewer: Validate summary is grounded in source material."""
+    """Reviewer: Validate summary is grounded in source material.
+
+    Uses structured outputs for reliable parsing.
+    """
 
     system_prompt = f"""You are a fact-checker. Your task is to validate that a summary
 is accurately grounded in the source material.
@@ -198,43 +201,29 @@ Check for:
 - Missing key facts that should be included
 - Inaccurate time/place references
 
-Respond with a JSON object:
-{{
-  "is_grounded": true/false,
-  "reason": "brief explanation if not grounded, otherwise 'OK'"
-}}
+Respond with a structured JSON object containing:
+- is_grounded: true/false
+- reason: brief explanation if not grounded, otherwise empty string
 
 Language: {language}"""
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = await client.beta.chat.completions.parse(
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Source:\n{source_content}\n\nSummary to validate:\n{summary}"}
             ],
             max_tokens=200,
             temperature=0.3,
+            response_format=GroundingValidation,
         )
 
-        content = response.choices[0].message.content or ""
+        result = response.choices[0].message.parsed
+        if result is None:
+            return False, "Validation parsing failed"
 
-        # Parse response
-        is_grounded = "true" in content.lower() and "false" not in content.lower()
-        reason = content if not is_grounded else None
-
-        # More sophisticated check
-        if not is_grounded:
-            if "ok" in content.lower():
-                is_grounded = True
-                reason = None
-            elif '"is_grounded": false' in content.lower():
-                is_grounded = False
-            elif '"is_grounded": true' in content.lower():
-                is_grounded = True
-                reason = None
-
-        return is_grounded, reason
+        return result.is_grounded, result.reason if result.reason else None
 
     except Exception:
         # On error, assume not grounded to trigger retry
@@ -265,7 +254,7 @@ Requirements:
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Source:\n{content}\n\nPrevious summary:\n{previous_summary}\n\nCreate a corrected summary:"}
@@ -305,7 +294,7 @@ Return ONLY the title, nothing else."""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Generate a title for:\n{summary}"}
@@ -361,7 +350,7 @@ Language: {language}"""
 
     try:
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.openai_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Extract the primary date from this story:\n\n{content}"}

@@ -1,34 +1,66 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
+import { LoadingScreen } from './LoadingScreen'
 import {
   analyzeEvent,
   generateFollowUp,
   getEventWithQuestions,
   generateTTS,
+  createQuestion,
   FollowUpQuestion,
   EventWithQuestions,
 } from '../services/interview'
-import { addRecording } from '../services/events'
+import { addRecording, updateRecordingTranscript } from '../services/events'
+import { encrypt, decrypt } from '../lib/crypto'
 import { extractErrorMessage } from '../lib/errors'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import { useEncryption } from '../hooks/useEncryption'
 
 type InterviewState = 'loading' | 'analyzing' | 'ready' | 'playing' | 'recording' | 'complete' | 'error'
 
 export function InterviewScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { key, isReady } = useEncryption()
   const [state, setState] = useState<InterviewState>('loading')
-  const [isUploading, setIsUploading] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [event, setEvent] = useState<EventWithQuestions | null>(null)
   const [currentQuestion, setCurrentQuestion] = useState<FollowUpQuestion | null>(null)
   const [error, setError] = useState<string>('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [plaintextTranscript, setPlaintextTranscript] = useState<string>('')
   const isLoadingRef = useRef(false)
+  const { play } = useAudioPlayer()
+
+  const decryptEventData = useCallback(async (eventData: EventWithQuestions): Promise<EventWithQuestions> => {
+    if (!key) return eventData
+
+    const decryptedRecordings = await Promise.all(
+      (eventData.recordings || []).map(async (r) => ({
+        ...r,
+        transcript: r.transcript ? await decrypt(r.transcript, key) : null,
+      }))
+    )
+
+    const decryptedQuestions = await Promise.all(
+      (eventData.follow_up_questions || []).map(async (q) => ({
+        ...q,
+        question_text: q.question_text ? await decrypt(q.question_text, key) : '',
+      }))
+    )
+
+    return {
+      ...eventData,
+      title: eventData.title ? await decrypt(eventData.title, key) : null,
+      recordings: decryptedRecordings,
+      follow_up_questions: decryptedQuestions,
+    }
+  }, [key])
 
   useEffect(() => {
-    if (!eventId || isLoadingRef.current) return
+    if (!eventId || isLoadingRef.current || !isReady) return
 
     const loadData = async () => {
       isLoadingRef.current = true
@@ -36,10 +68,18 @@ export function InterviewScreen() {
 
       try {
         const eventData = await getEventWithQuestions(eventId)
-        setEvent(eventData)
+        const decryptedEvent = await decryptEventData(eventData)
+        setEvent(decryptedEvent)
 
-        if (eventData.follow_up_questions && eventData.follow_up_questions.length > 0) {
-          const unanswered = eventData.follow_up_questions.find(q => !q.was_answered && !q.audio_url)
+        // Build plaintext transcript from all recordings
+        const transcripts = (decryptedEvent.recordings || [])
+          .map(r => r.transcript)
+          .filter((t): t is string => !!t)
+        const combinedTranscript = transcripts.join('\n\n')
+        setPlaintextTranscript(combinedTranscript)
+
+        if (decryptedEvent.follow_up_questions && decryptedEvent.follow_up_questions.length > 0) {
+          const unanswered = decryptedEvent.follow_up_questions.find(q => !q.was_answered && !q.audio_url)
           if (unanswered) {
             setCurrentQuestion(unanswered)
             setState('ready')
@@ -48,9 +88,25 @@ export function InterviewScreen() {
           }
         } else {
           setState('analyzing')
-          await analyzeEvent(eventId)
-          const question = await generateFollowUp(eventId)
-          setCurrentQuestion(question as unknown as FollowUpQuestion)
+          await analyzeEvent(eventId, combinedTranscript)
+          const existingQuestions = decryptedEvent.follow_up_questions?.map(q => q.question_text) || []
+          const question = await generateFollowUp(eventId, combinedTranscript, existingQuestions)
+          // Encrypt and store the question
+          if (key) {
+            const encryptedQuestion = await encrypt(question.question_text, key)
+            const storedQuestion = await createQuestion(eventId, {
+              question_text: encryptedQuestion,
+              question_type: question.question_type,
+            })
+            setCurrentQuestion({
+              ...question,
+              id: storedQuestion.id,
+              event_id: eventId,
+              was_answered: false,
+              sequence_order: storedQuestion.sequence_order,
+              created_at: storedQuestion.created_at,
+            })
+          }
           setState('ready')
         }
       } catch (err) {
@@ -62,7 +118,7 @@ export function InterviewScreen() {
     }
 
     loadData()
-  }, [eventId])
+  }, [eventId, isReady, key, decryptEventData])
 
   const playQuestionAudio = async () => {
     if (!currentQuestion || !eventId) return
@@ -70,59 +126,60 @@ export function InterviewScreen() {
     try {
       setState('playing')
       const result = await generateTTS(currentQuestion.question_text)
-
-      if (audioRef.current) {
-        audioRef.current.src = result.audio_url
-        
-        audioRef.current.onloadeddata = () => {
-          console.log('Audio loaded, duration:', audioRef.current?.duration)
-          audioRef.current?.play().catch(err => {
-            console.error('Play error:', err)
-            setError('Failed to play audio')
-            setState('ready')
-          })
-        }
-        
-        audioRef.current.onended = () => {
-          console.log('Audio playback ended')
+      await play(result.audio_url, {
+        onEnded: () => {
           setState('ready')
-        }
-        
-        audioRef.current.onerror = (e) => {
-          console.error('Audio error event:', e)
+        },
+        onError: () => {
           setError('Failed to play audio')
           setState('ready')
-        }
-      }
+        },
+      })
     } catch (err) {
-      console.error('TTS generation error:', err)
       setError(extractErrorMessage(err, 'Failed to play audio'))
       setState('ready')
     }
   }
 
   const handleAudioComplete = async (audioBlob: Blob) => {
-    if (!eventId || !currentQuestion) return
+    if (!eventId || !currentQuestion || !key) return
 
-    setIsUploading(true)
+    setStatusMessage('Uploading your recording...')
     try {
-      await addRecording(eventId, audioBlob, 'follow_up_response')
+      setStatusMessage('Processing your response...')
+      const recording = await addRecording(eventId, audioBlob, 'follow_up_response')
+      if (recording.transcript) {
+        const encryptedTranscript = await encrypt(recording.transcript, key)
+        await updateRecordingTranscript(recording.id, encryptedTranscript)
+      }
       window.location.reload()
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to save response'))
       setState('ready')
-    } finally {
-      setIsUploading(false)
+      setStatusMessage('')
     }
   }
 
   const handleNextQuestion = async () => {
-    if (!eventId) return
+    if (!eventId || !key) return
 
     setIsGenerating(true)
     try {
-      const question = await generateFollowUp(eventId)
-      setCurrentQuestion(question as unknown as FollowUpQuestion)
+      const existingQuestions = event?.follow_up_questions?.map(q => q.question_text) || []
+      const question = await generateFollowUp(eventId, plaintextTranscript, existingQuestions)
+      const encryptedQuestion = await encrypt(question.question_text, key)
+      const storedQuestion = await createQuestion(eventId, {
+        question_text: encryptedQuestion,
+        question_type: question.question_type,
+      })
+      setCurrentQuestion({
+        ...question,
+        id: storedQuestion.id,
+        event_id: eventId,
+        was_answered: false,
+        sequence_order: storedQuestion.sequence_order,
+        created_at: storedQuestion.created_at,
+      })
       setState('ready')
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to generate next question'))
@@ -141,41 +198,38 @@ export function InterviewScreen() {
 
   if (state === 'loading' || state === 'analyzing') {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <TopBar title="Interview"  />
-        <div className="max-w-2xl mx-auto p-4 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900">
-            {state === 'loading' ? 'Loading...' : 'Analyzing your story...'}
-          </h2>
-          <p className="text-gray-600 mt-2 text-lg">
-            {state === 'analyzing'
-              ? 'Extracting details and preparing questions for you'
-              : 'Please wait...'}
-          </p>
-        </div>
-      </div>
+      <LoadingScreen
+        message={
+          state === 'analyzing'
+            ? 'Analyzing your story...'
+            : 'Loading...'
+        }
+      />
     )
   }
 
   if (state === 'error') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Error"  />
+        <TopBar title="Error" />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-red-600 mb-4">Something went wrong</h2>
             <p className="text-gray-600 mb-4 text-lg">{error}</p>
             <div className="flex gap-4">
               <button
+                type="button"
                 onClick={() => window.location.reload()}
-                className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
+                disabled={isGenerating}
+                className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
               >
                 Try Again
               </button>
               <button
+                type="button"
                 onClick={() => navigate('/')}
-                className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium"
+                disabled={isGenerating}
+                className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium disabled:opacity-50"
               >
                 Go Home
               </button>
@@ -197,12 +251,13 @@ export function InterviewScreen() {
             <p className="text-gray-600 mb-6 text-lg">
               Thank you for sharing more about your life story.
             </p>
-            <button
-              onClick={handleEnd}
-              className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
-            >
-              Go to Timeline
-            </button>
+              <button
+                type="button"
+                onClick={handleEnd}
+                className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
+              >
+                Go to Timeline
+              </button>
           </div>
         </div>
       </div>
@@ -216,6 +271,7 @@ export function InterviewScreen() {
         secondary={{ label: 'End Interview', onClick: handleEnd }}
         tertiaryLeft={
           <button
+            type="button"
             onClick={handleNextQuestion}
             disabled={isGenerating}
             className="px-4 py-3 min-h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
@@ -234,14 +290,9 @@ export function InterviewScreen() {
             <div className="mb-6">
               <p className="text-lg text-gray-800 mb-4">{currentQuestion.question_text}</p>
 
-              <audio
-                ref={audioRef}
-                onEnded={() => setState('ready')}
-                className="hidden"
-              />
-
               <div className="flex gap-4 mb-4">
                 <button
+                  type="button"
                   onClick={playQuestionAudio}
                   disabled={state === 'playing'}
                   className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
@@ -257,7 +308,7 @@ export function InterviewScreen() {
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}
               disabled={state === 'playing'}
-              isUploading={isUploading}
+              statusMessage={statusMessage}
             />
           </div>
         </div>

@@ -1,31 +1,35 @@
-import { useEffect, useState } from 'react';
-import { getDashboardStats, DashboardStats } from '../services/evaluation';
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getDashboardStats, DashboardStats } from '../services/evaluation'
+import { TopBar } from '../components/TopBar'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
+import { extractErrorMessage } from '../lib/errors'
 
 export function DashboardScreen() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getDashboardStats()
       .then(setStats)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((err) => setError(extractErrorMessage(err, 'Failed to load dashboard')))
+      .finally(() => setLoading(false))
+  }, [])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Loading dashboard...</div>
-      </div>
-    );
+    return <LoadingScreen message="Loading dashboard..." />;
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-red-600">Error: {error}</div>
-      </div>
+      <ErrorFallback
+        message={error}
+        onRetry={() => navigate('/')}
+        retryLabel="Back to Timeline"
+      />
     );
   }
 
@@ -38,9 +42,9 @@ export function DashboardScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Evaluation Dashboard</h1>
+    <div className="min-h-screen bg-gray-50">
+      <TopBar title="Evaluation Dashboard" back={{ href: '/' }} />
+      <div className="max-w-2xl mx-auto p-4">
         
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">Total Evaluations</h2>

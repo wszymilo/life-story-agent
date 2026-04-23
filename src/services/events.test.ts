@@ -39,7 +39,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockEvent)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/',
+        '/api/events',
         expect.objectContaining({ method: 'POST' })
       )
     })
@@ -60,7 +60,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockEvent)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/',
+        '/api/events/evt-1',
         expect.any(Object)
       )
     })
@@ -68,7 +68,7 @@ describe('events service', () => {
     it('throws when not found', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
 
-      await expect(getEvent('evt-1')).rejects.toThrow('Failed to fetch event')
+      await expect(getEvent('evt-1')).rejects.toThrow('Not found')
     })
   })
 
@@ -85,7 +85,7 @@ describe('events service', () => {
     it('throws on validation error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Invalid', 422))
 
-      await expect(updateEvent('evt-1', { title: '' })).rejects.toThrow('Failed to update event')
+      await expect(updateEvent('evt-1', { title: '' })).rejects.toThrow('Invalid')
     })
   })
 
@@ -102,7 +102,7 @@ describe('events service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Server error', 500))
 
-      await expect(listEvents()).rejects.toThrow('Failed to list events')
+      await expect(listEvents()).rejects.toThrow('Server error')
     })
   })
 
@@ -113,7 +113,7 @@ describe('events service', () => {
       await deleteEvent('evt-1')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/',
+        '/api/events/evt-1',
         expect.objectContaining({ method: 'DELETE' })
       )
     })
@@ -144,7 +144,7 @@ describe('events service', () => {
 
       expect(result).toEqual(mockRecording)
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/events/evt-1/recordings/',
+        '/api/events/evt-1/recordings',
         expect.objectContaining({ method: 'POST' })
       )
     })
@@ -161,7 +161,7 @@ describe('events service', () => {
             id: 'rec-1',
           }),
       }
-      mockFetch.mockResolvedValueOnce(errorResponse as any)
+      mockFetch.mockResolvedValueOnce(errorResponse as unknown as Response)
 
       const audioBlob = new Blob(['audio'], { type: 'audio/webm' })
       await expect(addRecording('evt-1', audioBlob)).rejects.toThrow('Transcription failed but audio saved')
@@ -199,7 +199,7 @@ describe('events service', () => {
       const completedEvent = { id: 'evt-1', title: 'My Story', summary: 'Summary text', status: 'completed' }
       mockFetch.mockResolvedValueOnce(createFetchMock({ json: () => Promise.resolve(completedEvent) }))
 
-      const result = await completeEvent('evt-1')
+      const result = await completeEvent('evt-1', [], [])
 
       expect(result).toEqual(completedEvent)
       expect(result.status).toBe('completed')
@@ -208,7 +208,7 @@ describe('events service', () => {
     it('throws on error', async () => {
       mockFetch.mockResolvedValueOnce(createErrorResponse('Not found', 404))
 
-      await expect(completeEvent('evt-1')).rejects.toThrow()
+      await expect(completeEvent('evt-1', [], [])).rejects.toThrow()
     })
   })
 })

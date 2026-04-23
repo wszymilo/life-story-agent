@@ -4,10 +4,10 @@ import { InterviewScreen } from './InterviewScreen'
 
 const mockAnalyzeEvent = vi.fn()
 const mockGenerateFollowUp = vi.fn()
-const mockSkipFollowUp = vi.fn()
 const mockGetEventWithQuestions = vi.fn()
 const mockGenerateTTS = vi.fn()
 const mockAddRecording = vi.fn()
+const mockCreateQuestion = vi.fn()
 const mockNavigate = vi.fn()
 
 vi.mock('react-router-dom', () => ({
@@ -18,19 +18,29 @@ vi.mock('react-router-dom', () => ({
 vi.mock('../services/interview', () => ({
   analyzeEvent: (...args: unknown[]) => mockAnalyzeEvent(...args),
   generateFollowUp: (...args: unknown[]) => mockGenerateFollowUp(...args),
-  skipFollowUp: (...args: unknown[]) => mockSkipFollowUp(...args),
   getEventWithQuestions: (...args: unknown[]) => mockGetEventWithQuestions(...args),
   generateTTS: (...args: unknown[]) => mockGenerateTTS(...args),
+  createQuestion: (...args: unknown[]) => mockCreateQuestion(...args),
 }))
 
 vi.mock('../services/events', () => ({
   addRecording: (...args: unknown[]) => mockAddRecording(...args),
 }))
 
+vi.mock('../hooks/useEncryption', () => ({
+  useEncryption: vi.fn(() => ({ key: 'mock-key' as unknown as CryptoKey, isReady: true, isGenerating: false, error: null })),
+}))
+
+vi.mock('../lib/crypto', () => ({
+  encrypt: vi.fn(async (text: string) => `enc:${text}`),
+  decrypt: vi.fn(async (text: string) => text.replace(/^enc:/, '')),
+}))
+
 describe('InterviewScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    mockCreateQuestion.mockResolvedValue({ id: 'q-stored', sequence_order: 1, created_at: new Date().toISOString() })
   })
 
   it('shows loading or analyzing state initially', async () => {

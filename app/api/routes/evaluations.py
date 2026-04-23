@@ -16,16 +16,26 @@ settings = get_settings()
 
 @router.get("/dashboard", response_model=DashboardStats)
 async def get_dashboard(
+    eval_type: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Get evaluation dashboard statistics (admin only)."""
+    """Get evaluation dashboard statistics (admin only).
+
+    Args:
+        eval_type: Optional filter by evaluation type (summary, meta_story, question).
+                   Defaults to all types.
+    """
     if current_user.email != settings.admin_email:
         raise HTTPException(403, "Admin access only")
 
     supabase = await get_supabase_client()
 
-    results = supabase.table("evaluation_results").select("*").order("created_at", desc=True).limit(10).execute()
-    
+    query = supabase.table("evaluation_results").select("*")
+    if eval_type:
+        query = query.eq("eval_type", eval_type)
+
+    results = query.order("created_at", desc=True).limit(10).execute()
+
     if not results.data:
         return DashboardStats(
             total_evaluations=0,
@@ -36,31 +46,19 @@ async def get_dashboard(
             recent_evaluations=[],
         )
 
-    recent = [
-        EvaluationResultResponse(
-            id=r["id"],
-            event_id=r["event_id"],
-            eval_type=r["eval_type"],
-            prompt_text=r.get("prompt_text"),
-            summary_text=r.get("summary_text"),
-            factual_accuracy=r.get("factual_accuracy"),
-            coherence=r.get("coherence"),
-            completeness=r.get("completeness"),
-            overall_score=r.get("overall_score"),
-            evaluator_model=r.get("evaluator_model", "gpt-4o"),
-            created_at=r["created_at"],
-        )
-        for r in results.data
-    ]
+    recent = [EvaluationResultResponse.from_row(r) for r in results.data]
 
     total = len(results.data)
-    
+
     avg_factual = sum(r.get("factual_accuracy", 0) for r in results.data if r.get("factual_accuracy")) / total if total > 0 else None
     avg_coherence = sum(r.get("coherence", 0) for r in results.data if r.get("coherence")) / total if total > 0 else None
     avg_completeness = sum(r.get("completeness", 0) for r in results.data if r.get("completeness")) / total if total > 0 else None
     avg_overall = sum(r.get("overall_score", 0) for r in results.data if r.get("overall_score")) / total if total > 0 else None
 
-    count_result = supabase.table("evaluation_results").select("count", count="exact").execute()
+    count_query = supabase.table("evaluation_results").select("count", count="exact")
+    if eval_type:
+        count_query = count_query.eq("eval_type", eval_type)
+    count_result = count_query.execute()
     total_count = count_result.count or 0
 
     return DashboardStats(
@@ -89,17 +87,4 @@ async def create_evaluation(
     if not result.data:
         raise HTTPException(500, "Failed to create evaluation")
 
-    r = result.data[0]
-    return EvaluationResultResponse(
-        id=r["id"],
-        event_id=r["event_id"],
-        eval_type=r["eval_type"],
-        prompt_text=r.get("prompt_text"),
-        summary_text=r.get("summary_text"),
-        factual_accuracy=r.get("factual_accuracy"),
-        coherence=r.get("coherence"),
-        completeness=r.get("completeness"),
-        overall_score=r.get("overall_score"),
-        evaluator_model=r.get("evaluator_model", "gpt-4o"),
-        created_at=r["created_at"],
-    )
+    return EvaluationResultResponse.from_row(result.data[0])

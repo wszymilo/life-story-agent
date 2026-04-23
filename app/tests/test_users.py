@@ -36,6 +36,21 @@ class TestLanguagePreference:
         update = UserUpdate(preferred_language="pl")
         assert update.preferred_language == "pl"
 
+    def test_user_response_has_is_admin_default_false(self):
+        from api.schemas.user import UserResponse
+        import uuid
+        from datetime import datetime
+
+        response = UserResponse(
+            id=uuid.uuid4(),
+            email="user@example.com",
+            name=None,
+            birth_date=None,
+            country_of_origin=None,
+            created_at=datetime.now(),
+        )
+        assert response.is_admin is False
+
 
 class TestRelatives:
     def test_post_relatives_requires_auth(self):
