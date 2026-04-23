@@ -9,6 +9,9 @@
 const IV_LENGTH = 12
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(buffer).toString('base64')
+  }
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.byteLength; i++) {
@@ -18,6 +21,13 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  if (typeof Buffer !== 'undefined') {
+    // Validate base64 strictly using atob (throws on invalid input),
+    // then use Buffer for realm-safe ArrayBuffer creation.
+    const binary = atob(base64)
+    const buf = Buffer.from(binary, 'binary')
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+  }
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
@@ -29,7 +39,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 export async function generateKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
-    true, // extractable
+    true,
     ['encrypt', 'decrypt']
   )
 }
@@ -70,7 +80,6 @@ export async function decrypt(ciphertext: string, key: CryptoKey): Promise<strin
 
     return new TextDecoder().decode(decrypted)
   } catch {
-    // If decryption fails (e.g., plaintext data like meta-stories), return as-is
     return ciphertext
   }
 }
