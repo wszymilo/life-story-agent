@@ -269,7 +269,7 @@ describe('InterviewScreen', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByText('Record your answer:')).toBeInTheDocument()
+        expect(screen.getByText(/Tap the red circle to start recording/i)).toBeInTheDocument()
       },
       { timeout: 2000 }
     )
