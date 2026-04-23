@@ -1,30 +1,33 @@
 """Evaluation service using LLM-as-judge."""
 
-import asyncio
 import hashlib
 import random
 
 from api.logging_config import get_logger
+from api.schemas.evaluation import EvaluationScores
 from config import get_settings
+from db.client import get_supabase_client
+from fastapi import BackgroundTasks
+from openai import AsyncOpenAI
 
 settings = get_settings()
 logger = get_logger()
+
+MAX_PROMPT_LENGTH = 500
 
 
 async def evaluate_output(
     prompt_text: str,
     summary_text: str,
     eval_type: str = "summary",
-) -> dict | None:
-    """Evaluate summary quality using GPT-4 as judge.
-    
-    Returns dict with factual_accuracy, coherence, completeness, overall_score (1-5).
+) -> EvaluationScores | None:
+    """Evaluate summary quality using LLM as judge.
+
+    Returns structured scores or None if evaluation fails.
     """
     if not settings.openai_api_key:
         logger.warning("eval_skipped_no_api_key")
         return None
-
-    from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
@@ -34,51 +37,45 @@ async def evaluate_output(
 - completeness: Are key details and themes included?
 
 Source prompt (truncated):
-{prompt_text[:500]}
+{prompt_text[:MAX_PROMPT_LENGTH]}
 
 {eval_type.capitalize()} to evaluate:
-{summary_text[:500]}
+{summary_text[:MAX_PROMPT_LENGTH]}
 
-Respond with ONLY a JSON object:
-{{"factual_accuracy": 1-5, "coherence": 1-5, "completeness": 1-5, "overall_score": 1-5, "explanation": "brief text"}}
+Provide your ratings as structured output.
 """
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o",
+        response = await client.beta.chat.completions.parse(
+            model=settings.openai_model,
             messages=[{"role": "user", "content": eval_prompt}],
             temperature=0.2,
+            response_format=EvaluationScores,
         )
 
-        content = response.choices[0].message.content or ""
-        
-        # Parse JSON from response
-        import json
-        result = {}
-        try:
-            # Extract JSON from potential markdown code block
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0]
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0]
-            result = json.loads(content.strip())
-        except json.JSONDecodeError:
-            logger.warning("eval_parse_failed", content=content[:200])
+        result = response.choices[0].message.parsed
+        if result is None:
+            logger.warning("eval_parse_failed")
             return None
 
         logger.info(
             "eval_completed",
             eval_type=eval_type,
-            overall_score=result.get("overall_score"),
-            factual_accuracy=result.get("factual_accuracy"),
-            coherence=result.get("coherence"),
-            completeness=result.get("completeness"),
+            overall_score=result.overall_score,
+            factual_accuracy=result.factual_accuracy,
+            coherence=result.coherence,
+            completeness=result.completeness,
         )
 
         return result
 
     except Exception as e:
-        logger.error("eval_failed", error=str(e))
+        from services.openai_utils import raise_openai_error
+
+        try:
+            raise_openai_error(e, "Evaluation")
+        except RuntimeError as re:
+            logger.error("eval_failed", error=str(re))
         return None
 
 
@@ -94,15 +91,16 @@ def get_prompt_hash(prompt_text: str) -> str:
     return hashlib.sha256(prompt_text.encode()).hexdigest()[:16]
 
 
-async def evaluate_in_background(
+def evaluate_in_background(
+    background_tasks: BackgroundTasks,
     event_id: str,
     eval_type: str,
     prompt_text: str,
     summary_text: str,
 ) -> None:
-    """Run evaluation in background without blocking."""
-    asyncio.create_task(
-        _evaluate_and_store(event_id, eval_type, prompt_text, summary_text)
+    """Schedule evaluation to run in the background without blocking."""
+    background_tasks.add_task(
+        _evaluate_and_store, event_id, eval_type, prompt_text, summary_text
     )
 
 
@@ -113,8 +111,6 @@ async def _evaluate_and_store(
     summary_text: str,
 ) -> None:
     """Internal: evaluate and store result in database."""
-    from db.client import get_supabase_client
-
     result = await evaluate_output(prompt_text, summary_text, eval_type)
     if not result:
         return
@@ -126,14 +122,14 @@ async def _evaluate_and_store(
             "event_id": event_id,
             "eval_type": eval_type,
             "prompt_hash": get_prompt_hash(prompt_text),
-            "prompt_text": prompt_text[:500],
-            "summary_text": summary_text[:500],
-            "factual_accuracy": result.get("factual_accuracy"),
-            "coherence": result.get("coherence"),
-            "completeness": result.get("completeness"),
-            "overall_score": result.get("overall_score"),
-            "evaluator_model": "gpt-4o",
-        })
+            "prompt_text": prompt_text[:MAX_PROMPT_LENGTH],
+            "summary_text": summary_text[:MAX_PROMPT_LENGTH],
+            "factual_accuracy": result.factual_accuracy,
+            "coherence": result.coherence,
+            "completeness": result.completeness,
+            "overall_score": result.overall_score,
+            "evaluator_model": settings.openai_model,
+        }).execute()
         logger.info("eval_stored", event_id=event_id, eval_type=eval_type)
     except Exception as e:
         logger.error("eval_store_failed", error=str(e))

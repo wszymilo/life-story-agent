@@ -34,14 +34,6 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleRecord = async () => {
-    await startRecording()
-  }
-
-  const handleStop = () => {
-    stopRecording()
-  }
-
   const handleReset = () => {
     prevBlobRef.current = null
     reset()
@@ -52,6 +44,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
       <div className="flex flex-col items-center justify-center p-8">
         <div className="text-red-600 text-xl mb-4">{error}</div>
         <button
+          type="button"
           onClick={handleReset}
           className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
         >
@@ -71,7 +64,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
       )}
 
       {statusMessage && (
-        <div className="mb-6">
+        <div className="mb-6" aria-live="polite">
           <p className="text-blue-600 font-medium text-lg">{statusMessage}</p>
         </div>
       )}
@@ -82,7 +75,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
 
       {!isRecording && !audioBlob && (
         <button
-          onClick={handleRecord}
+          onClick={startRecording}
           disabled={disabled}
           className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Start recording"
@@ -93,7 +86,7 @@ export function AudioRecorder({ onRecordingComplete, disabled, isUploading, stat
 
       {isRecording && (
         <button
-          onClick={handleStop}
+          onClick={stopRecording}
           disabled={disabled}
           className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
           aria-label="Stop recording"

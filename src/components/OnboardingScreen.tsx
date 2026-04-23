@@ -101,6 +101,8 @@ export function OnboardingScreen() {
                 className={`w-6 h-6 rounded-full transition-colors ${
                   s === step ? 'bg-blue-600' : s < step ? 'bg-green-500' : 'bg-gray-300'
                 }`}
+                role="img"
+                aria-label={`Step ${s} of 3`}
               />
             ))}
           </div>
@@ -115,6 +117,7 @@ export function OnboardingScreen() {
               <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
                   type="text"
+                  name="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your full name"
@@ -140,6 +143,7 @@ export function OnboardingScreen() {
               <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
                   type="date"
+                  name="birthDate"
                   value={birthDate}
                   onChange={(e) => setBirthDate(e.target.value)}
                   className="w-full px-4 py-4 text-xl border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-12"
@@ -171,6 +175,7 @@ export function OnboardingScreen() {
                 Where are you from?
               </h2>
               <select
+                name="country"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 className="w-full px-4 py-4 text-xl border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-12"

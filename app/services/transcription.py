@@ -1,9 +1,13 @@
 import io
 import time
 
+import httpx
 from api.langfuse_config import log_generation
 from api.logging_config import get_logger
 from config import get_settings
+from openai import AsyncOpenAI
+from services.openai_utils import raise_openai_error
+from services.storage import StorageService
 
 settings = get_settings()
 logger = get_logger()
@@ -17,29 +21,13 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl") -> str:
     logger.debug("transcription_url_start", audio_url=audio_url, language=language)
 
     # Check if this is a Supabase Storage URL (private bucket scenario)
-    # URL format: https://...supabase.co/storage/v1/object/public/audio-recordings/...
-    if "/storage/v1/object/" in audio_url and "audio-recordings" in audio_url:
-        # Extract file path from URL (everything after /audio-recordings/)
-        path_parts = audio_url.split("/audio-recordings/")
-        if len(path_parts) > 1:
-            file_path = path_parts[1]
-
-            logger.debug("transcription_downloading", file_path=file_path)
-
-            # Use service key to download from private bucket
-            from supabase import create_client
-
-            service_client = create_client(settings.supabase_url, settings.supabase_service_key)
-            audio_content = service_client.storage.from_("audio-recordings").download(file_path)
-
-            logger.debug("transcription_downloaded", file_path=file_path, size_bytes=len(audio_content))
-
-            # Transcribe the downloaded content
-            return await transcribe_audio_data(audio_content, language)
+    if "/storage/v1/object/" in audio_url:
+        storage = StorageService()
+        audio_content = await storage.download(audio_url)
+        logger.debug("transcription_downloaded", size_bytes=len(audio_content))
+        return await transcribe_audio_data(audio_content, language)
 
     # Fallback: try direct HTTP download for non-Supabase URLs
-    import httpx
-
     async with httpx.AsyncClient() as client:
         response = await client.get(audio_url)
         response.raise_for_status()
@@ -55,8 +43,6 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl") -> str:
 
     if not audio_data or len(audio_data) == 0:
         raise RuntimeError("Transcription failed: No audio data")
-
-    from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
@@ -115,9 +101,4 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl") -> str:
             error_type=type(e).__name__,
         )
 
-        # Simplify common errors
-        if "Incorrect API key" in err_msg or "invalid_api_key" in err_msg:
-            raise RuntimeError("Transcription failed: Invalid API key")
-        if "api_key" in err_msg.lower():
-            raise RuntimeError("Transcription failed: API key issue")
-        raise RuntimeError("Transcription failed")
+        raise_openai_error(e, "Transcription")

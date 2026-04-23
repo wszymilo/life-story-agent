@@ -57,6 +57,7 @@ export function TopBar({
           <div className="flex items-center gap-2">
             {hasBack && (
               <button
+                type="button"
                 onClick={handleBack}
                 className="flex items-center gap-1 px-4 py-3 min-h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 text-lg rounded-lg font-medium"
               >
@@ -94,6 +95,7 @@ export function TopBar({
           <div className="flex items-center gap-2">
             {secondary && (
               <button
+                type="button"
                 onClick={secondary.onClick}
                 disabled={secondary.loading}
                 className="px-4 py-3 min-h-12 bg-gray-200 hover:bg-gray-300 text-gray-700 text-lg rounded-lg font-medium disabled:opacity-50"
@@ -103,6 +105,7 @@ export function TopBar({
             )}
             {primary && (
               <button
+                type="button"
                 onClick={primary.onClick}
                 disabled={primary.loading}
                 className="px-4 py-3 min-h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
@@ -112,6 +115,7 @@ export function TopBar({
             )}
             {destructive && (
               <button
+                type="button"
                 onClick={destructive.onClick}
                 disabled={destructive.loading}
                 className="px-4 py-3 min-h-12 bg-red-600 hover:bg-red-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"

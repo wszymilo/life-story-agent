@@ -30,6 +30,15 @@ vi.mock('../services/events', () => ({
   getEvent: (...args: unknown[]) => mockGetEvent(...args),
 }))
 
+vi.mock('../hooks/useEncryption', () => ({
+  useEncryption: vi.fn(() => ({ key: 'mock-key' as unknown as CryptoKey, isReady: true, isGenerating: false, error: null })),
+}))
+
+vi.mock('../lib/crypto', () => ({
+  encrypt: vi.fn(async (text: string) => `enc:${text}`),
+  decrypt: vi.fn(async (text: string) => text.replace(/^enc:/, '')),
+}))
+
 describe('RecordingScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks()

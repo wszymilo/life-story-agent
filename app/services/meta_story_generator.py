@@ -4,13 +4,10 @@ Generates a combined story from multiple selected events.
 """
 
 import time
-from datetime import date, datetime
 
 from api.langfuse_config import log_generation
 from api.logging_config import get_logger
-from api.utils import get_event_for_user
 from config import get_settings
-from db.client import get_supabase_client
 from openai import AsyncOpenAI
 
 settings = get_settings()
@@ -18,93 +15,47 @@ logger = get_logger()
 
 
 async def generate_meta_story(
-    user_id: str,
-    event_ids: list[str],
+    sources: list[dict],
     language: str = "pl",
 ) -> dict:
-    """Generate a meta-story from multiple events.
+    """Generate a meta-story from multiple event sources.
 
     Args:
-        user_id: The user's ID
-        event_ids: List of event IDs to combine
+        sources: List of source dicts with title, summary, date, transcripts
         language: Language code (default: pl)
 
     Returns:
-        Dict with title, summary, time_anchor_date, source_event_ids
+        Dict with title, summary
     """
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
-    if len(event_ids) < 2:
-        raise ValueError("At least 2 events required")
+    if len(sources) < 2:
+        raise ValueError("At least 2 sources required")
 
-    if len(event_ids) > settings.max_meta_story_select:
-        raise ValueError(f"Maximum {settings.max_meta_story_select} events allowed")
+    if len(sources) > settings.max_meta_story_select:
+        raise ValueError(f"Maximum {settings.max_meta_story_select} sources allowed")
 
     start_time = time.perf_counter()
-    event_count = len(event_ids)
+    source_count = len(sources)
 
     logger.info(
         "meta_story_started",
-        user_id=user_id,
-        event_count=event_count,
+        source_count=source_count,
         language=language,
     )
 
-    supabase = await get_supabase_client()
-
-    events = []
-    for event_id in event_ids:
-        event = await get_event_for_user(supabase, event_id, user_id)
-        if not event:
-            logger.warning("meta_story_event_not_found", event_id=event_id)
-            raise ValueError(f"Event {event_id} not found")
-        if event.get("status") != "complete":
-            logger.warning("meta_story_event_not_complete", event_id=event_id, status=event.get("status"))
-            raise ValueError(f"Event {event_id} is not complete")
-        events.append(event)
-
-    def sort_key(e):
-        date_str = e.get("time_anchor_date")
-        if date_str:
-            try:
-                return datetime.strptime(date_str, "%Y-%m-%d")
-            except ValueError:
-                pass
-        created = e.get("created_at", "")
-        if created:
-            try:
-                return datetime.strptime(created[:10], "%Y-%m-%d")
-            except ValueError:
-                pass
-        return datetime.min
-
-    events.sort(key=sort_key)
-
     content_parts = []
-    for i, event in enumerate(events):
-        title = event.get("title") or f"Story {i+1}"
-        time_info = event.get("time_anchor_date") or event.get("created_at", "")[:10]
+    for i, source in enumerate(sources):
+        title = source.get("title") or f"Story {i+1}"
+        time_info = source.get("date") or ""
 
         content_parts.append(f"--- Story {i+1}: {title} ({time_info}) ---")
 
-        if event.get("summary"):
-            content_parts.append(f"Summary: {event['summary']}")
+        if source.get("summary"):
+            content_parts.append(f"Summary: {source['summary']}")
 
-        recordings = (
-            supabase.table("audio_recordings")
-            .select("transcript", "recording_type")
-            .eq("event_id", event_id)
-            .order("sequence_order")
-            .execute()
-        )
-
-        transcripts = []
-        for rec in recordings.data or []:
-            if rec.get("transcript"):
-                rec_type = rec.get("recording_type", "unknown")
-                transcripts.append(f"[{rec_type}]: {rec['transcript']}")
-
+        transcripts = source.get("transcripts", [])
         if transcripts:
             content_parts.append("Transcripts:")
             for t in transcripts:
@@ -116,7 +67,7 @@ async def generate_meta_story(
 
     logger.debug(
         "meta_story_content_prepared",
-        event_count=event_count,
+        source_count=source_count,
         content_length=len(full_content),
     )
 
@@ -169,9 +120,9 @@ title (max 100 chars) for this life story in {language}."""
     title = title.strip().strip('"').strip("'")[:100]
 
     source_section = "\n\n---\n\n## Sources\n"
-    for i, event in enumerate(events):
-        source_title = event.get("title") or f"Story {i+1}"
-        source_date = event.get("time_anchor_date") or event.get("created_at", "")[:10]
+    for i, source in enumerate(sources):
+        source_title = source.get("title") or f"Story {i+1}"
+        source_date = source.get("date") or ""
         source_section += f"{i+1}. {source_title} ({source_date})\n"
 
     final_summary = summary + source_section
@@ -181,7 +132,7 @@ title (max 100 chars) for this life story in {language}."""
     logger.info(
         "meta_story_completed",
         duration_ms=round(duration_ms, 2),
-        event_count=event_count,
+        source_count=source_count,
         summary_length=len(final_summary),
         title=title[:50],
     )
@@ -193,13 +144,11 @@ title (max 100 chars) for this life story in {language}."""
         metadata={
             "operation": "meta_story",
             "duration_ms": round(duration_ms, 2),
-            "event_count": event_count,
+            "source_count": source_count,
         },
     )
 
     return {
         "title": title,
         "summary": final_summary,
-        "time_anchor_date": date.today().isoformat(),
-        "source_event_ids": event_ids,
     }

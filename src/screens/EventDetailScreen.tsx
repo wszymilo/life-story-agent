@@ -1,40 +1,72 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEvent, deleteEvent, exportEvent, streamAudio, EventData, AudioRecording } from '../services/events'
+import { getEvent, deleteEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import { useEventExport } from '../hooks/useEventExport'
+import { useEncryption } from '../hooks/useEncryption'
+import { decrypt } from '../lib/crypto'
+import { extractErrorMessage } from '../lib/errors'
+import { formatDate, formatDuration } from '../lib/date'
 
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { key, isReady } = useEncryption()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [decrypting, setDecrypting] = useState(false)
   const [error, setError] = useState<string>('')
   const [deleting, setDeleting] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const [playingId, setPlayingId] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showRecordAgainDialog, setShowRecordAgainDialog] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null)
+  const { play, pause } = useAudioPlayer()
+  const { exporting, downloadExport } = useEventExport()
 
   useEffect(() => {
-    if (!eventId) return
+    if (!eventId || !isReady) return
 
     const loadEvent = async () => {
       try {
         setLoading(true)
         setError('')
         const data = await getEvent(eventId)
-        setEvent(data)
+
+        if (key) {
+          setDecrypting(true)
+          // Decrypt title, summary, and transcripts
+          const decryptedTitle = data.title ? await decrypt(data.title, key) : null
+          const decryptedSummary = data.summary ? await decrypt(data.summary, key) : null
+          const decryptedRecordings = await Promise.all(
+            (data.recordings || []).map(async (r) => ({
+              ...r,
+              transcript: r.transcript ? await decrypt(r.transcript, key) : null,
+            }))
+          )
+
+          setEvent({
+            ...data,
+            title: decryptedTitle,
+            summary: decryptedSummary,
+            recordings: decryptedRecordings,
+          })
+          setDecrypting(false)
+        } else {
+          setEvent(data)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load event')
+        setError(extractErrorMessage(err, 'Failed to load event'))
       } finally {
         setLoading(false)
       }
     }
 
     loadEvent()
-  }, [eventId])
+  }, [eventId, key, isReady])
 
   const handleDelete = () => {
     if (!event?.id) return
@@ -49,7 +81,7 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete')
+      alert(extractErrorMessage(err, 'Failed to delete'))
       setDeleting(false)
     }
   }
@@ -66,106 +98,59 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/record')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete draft')
+      alert(extractErrorMessage(err, 'Failed to delete draft'))
       setDeleting(false)
     }
   }
 
-  const handleExport = async () => {
-    if (!event?.id) return
-
-    setExporting(true)
-    try {
-      const { blob, filename } = await exportEvent(event.id)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to export')
-    } finally {
-      setExporting(false)
-    }
+  const handleExport = () => {
+    if (!event) return
+    downloadExport(event)
   }
 
   const playAudio = async (recording: AudioRecording) => {
     if (!event?.id) return
 
-    if (playingId === recording.id) {
-      audioRef.current?.pause()
-      setPlayingId(null)
+    if (playingRecordingId === recording.id) {
+      pause()
+      setPlayingRecordingId(null)
       return
-    }
-
-    if (audioRef.current) {
-      audioRef.current.pause()
     }
 
     try {
       const blob = await streamAudio(event.id, recording.id)
       const url = URL.createObjectURL(blob)
-      audioRef.current = new Audio(url)
-      audioRef.current.onended = () => {
-        setPlayingId(null)
-        URL.revokeObjectURL(url)
-      }
-      audioRef.current.play()
-      setPlayingId(recording.id)
+      setPlayingRecordingId(recording.id)
+      await play(url, {
+        onEnded: () => {
+          setPlayingRecordingId(null)
+          URL.revokeObjectURL(url)
+        },
+        onError: () => {
+          setPlayingRecordingId(null)
+          URL.revokeObjectURL(url)
+          alert('Failed to play audio')
+        },
+      })
     } catch (err) {
-      console.error('Failed to play audio:', err)
+      setPlayingRecordingId(null)
       alert('Failed to play audio')
     }
   }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null
-    try {
-      const date = new Date(dateStr)
-      return date.toLocaleDateString('pl-PL', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    } catch {
-      return dateStr
-    }
-  }
 
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return null
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+  if (loading || decrypting || !isReady) {
+    return <LoadingScreen />
   }
 
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Event not found'}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Back to Timeline
-          </button>
-        </div>
-      </div>
+      <ErrorFallback
+        message={error || 'Event not found'}
+        onRetry={() => navigate('/')}
+        retryLabel="Back to Timeline"
+      />
     )
   }
 
@@ -214,14 +199,18 @@ export function EventDetailScreen() {
           {isDraft && (
             <div className="space-y-3">
               <button
+                type="button"
                 onClick={() => navigate(`/interview/${event.id}`)}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium"
+                disabled={deleting}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
               >
                 Continue to Interview
               </button>
               <button
+                type="button"
                 onClick={handleRecordAgain}
-                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
+                disabled={deleting}
+                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium disabled:opacity-50"
               >
                 Record Again
               </button>
@@ -259,17 +248,18 @@ export function EventDetailScreen() {
                   </div>
                   {recording.audio_url && (
                     <button
+                      type="button"
                       onClick={() => playAudio(recording)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        playingId === recording.id
+                        playingRecordingId === recording.id
                           ? 'bg-red-600 text-white'
                           : 'bg-blue-600 text-white'
                       }`}
                       aria-label={
-                        playingId === recording.id ? 'Pause' : 'Play recording'
+                        playingRecordingId === recording.id ? 'Pause' : 'Play recording'
                       }
                     >
-                      {playingId === recording.id ? (
+                      {playingRecordingId === recording.id ? (
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                         </svg>

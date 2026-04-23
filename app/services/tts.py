@@ -4,15 +4,25 @@ from api.langfuse_config import log_generation
 from api.logging_config import get_logger
 from config import get_settings
 from openai import AsyncOpenAI
+from services.openai_utils import raise_openai_error
 
 settings = get_settings()
 logger = get_logger()
 
+VALID_VOICES = [
+    "alloy", "ash", "ballad", "coral", "echo", "fable",
+    "onyx", "nova", "sage", "shimmer", "verse", "marin", "cedar"
+]
 
-async def generate_speech(
+VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-12-15"]
+
+VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]
+
+
+async def generate_speech (
     text: str,
     voice: str = "nova",
-    model: str = "gpt-4o-mini-tts",
+    model: str = settings.tts_model,
     response_format: str = "mp3",
 ) -> tuple[bytes, str]:
     """Generate speech from text using OpenAI TTS API.
@@ -97,20 +107,4 @@ async def generate_speech(
             voice=voice,
         )
 
-        if "api_key" in err_msg.lower():
-            raise RuntimeError("TTS failed: Invalid API key")
-        if "rate_limit" in err_msg.lower():
-            raise RuntimeError("TTS failed: Rate limit exceeded")
-        if "max_tokens" in err_msg.lower():
-            raise RuntimeError("TTS failed: Text too long (max 4096 characters)")
-        raise RuntimeError(f"TTS failed: {err_msg}")
-
-
-VALID_VOICES = [
-    "alloy", "ash", "ballad", "coral", "echo", "fable",
-    "onyx", "nova", "sage", "shimmer", "verse", "marin", "cedar"
-]
-
-VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-12-15"]
-
-VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]
+        raise_openai_error(e, "TTS")

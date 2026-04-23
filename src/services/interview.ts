@@ -1,12 +1,11 @@
-import { fetchApi } from './api'
+import { fetchApi, fetchJson } from './api'
+import type { AudioRecording } from './events'
 
 export interface FollowUpQuestion {
   id: string
   event_id: string
   question_text: string
   question_type?: string
-  context?: string
-  target_area?: string
   was_answered: boolean
   audio_url?: string | null
   sequence_order: number
@@ -23,6 +22,7 @@ export interface EventWithQuestions {
   summary: string | null
   created_at: string
   follow_up_questions: FollowUpQuestion[]
+  recordings?: AudioRecording[]
 }
 
 export interface TranscriptAnalysis {
@@ -34,46 +34,49 @@ export interface TranscriptAnalysis {
   summary: string
 }
 
-export async function analyzeEvent(eventId: string): Promise<TranscriptAnalysis> {
-  const response = await fetchApi(`/api/events/${eventId}/analyze`, {
+export async function analyzeEvent(eventId: string, transcript: string): Promise<TranscriptAnalysis> {
+  return fetchJson<TranscriptAnalysis>(`/api/events/${eventId}/analyze`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to analyze event')
-  }
-  return response.json()
 }
 
-export async function generateFollowUp(eventId: string): Promise<FollowUpQuestion> {
-  const response = await fetchApi(`/api/events/${eventId}/follow-up`, {
+export async function generateFollowUp(
+  eventId: string,
+  transcript: string,
+  existingQuestions: string[] = []
+): Promise<FollowUpQuestion> {
+  return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/follow-up`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript, existing_questions: existingQuestions }),
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to generate follow-up')
-  }
-  return response.json()
 }
 
-export async function skipFollowUp(eventId: string, questionId: string): Promise<void> {
-  const response = await fetchApi(
+export async function createQuestion(
+  eventId: string,
+  question: {
+    question_text: string
+    question_type?: string
+  }
+): Promise<FollowUpQuestion> {
+  return fetchJson<FollowUpQuestion>(`/api/events/${eventId}/questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(question),
+  })
+}
+
+export async function skipFollowUp(eventId: string, questionId: string): Promise<{ status: string; question_id: string }> {
+  return fetchJson<{ status: string; question_id: string }>(
     `/api/events/${eventId}/follow-up/${questionId}/skip`,
     { method: 'POST' }
   )
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to skip question')
-  }
 }
 
 export async function getEventWithQuestions(eventId: string): Promise<EventWithQuestions> {
-  const response = await fetchApi(`/api/events/${eventId}`)
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to fetch event')
-  }
-  return response.json()
+  return fetchJson<EventWithQuestions>(`/api/events/${eventId}`)
 }
 
 export async function generateTTS(
@@ -87,7 +90,7 @@ export async function generateTTS(
     body: JSON.stringify({ text, voice, model }),
   })
   if (!response.ok) {
-    const error = await response.json()
+    const error = await response.json().catch(() => ({}))
     throw new Error(error.detail || 'Failed to generate TTS')
   }
 

@@ -5,23 +5,35 @@ import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { listEvents, generateMetaStory, EventData } from '../services/events'
+import { LoadingScreen } from '../components/LoadingScreen'
+import { ErrorFallback } from '../components/ErrorFallback'
+import { listEvents, getEvent, createEvent, updateEvent, generateMetaStory, EventData } from '../services/events'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
 import { LANGUAGE_OPTIONS } from '../services/constants'
+import { useEventSelection } from '../hooks/useEventSelection'
+import { useEncryption } from '../hooks/useEncryption'
+import { encrypt, decrypt } from '../lib/crypto'
+import { extractErrorMessage } from '../lib/errors'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
   const { profile, refreshProfile } = useAuth()
+  const { key, isReady } = useEncryption()
   const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
-  const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
   const [changingLanguage, setChangingLanguage] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const {
+    multiSelectMode,
+    selectedIds,
+    toggleSelection,
+    clearSelection,
+    enterSelectionMode,
+  } = useEventSelection()
 
   const handleLanguageChange = async (lang: string) => {
     if (changingLanguage || !profile) return
@@ -30,7 +42,7 @@ export function TimelineScreen() {
       await updatePreferredLanguage(lang)
       await refreshProfile()
     } catch (err) {
-      console.error('Failed to update language:', err)
+      setError(extractErrorMessage(err, 'Failed to update language'))
     } finally {
       setChangingLanguage(false)
     }
@@ -52,24 +64,61 @@ export function TimelineScreen() {
   }
 
   const handleSelectToggle = (eventId: string) => {
-    const newSelected = new Set(selectedIds)
-    if (newSelected.has(eventId)) {
-      newSelected.delete(eventId)
-    } else {
-      newSelected.add(eventId)
-    }
-    setSelectedIds(newSelected)
+    toggleSelection(eventId)
   }
 
   const handleCombineStories = async () => {
-    if (selectedIds.size < 2 || generating) return
+    if (selectedIds.size < 2 || generating || !key) return
 
     setGenerating(true)
     try {
-      const result = await generateMetaStory(Array.from(selectedIds))
-      navigate(`/event/${result.id}`)
+      // 1. Fetch and decrypt selected events
+      const eventIds = Array.from(selectedIds)
+      const eventsData = await Promise.all(
+        eventIds.map(async (id) => {
+          const event = await getEvent(id)
+          const decryptedTitle = event.title ? await decrypt(event.title, key) : null
+          const decryptedSummary = event.summary ? await decrypt(event.summary, key) : null
+          const decryptedTranscripts = await Promise.all(
+            (event.recordings || [])
+              .filter((r): r is typeof r & { transcript: string } => !!r.transcript)
+              .map(async (r) => (r.transcript ? await decrypt(r.transcript, key) : ''))
+          )
+          return {
+            title: decryptedTitle || 'Untitled Memory',
+            summary: decryptedSummary || '',
+            date: event.time_anchor_date || event.time_anchor || event.created_at?.slice(0, 10) || '',
+            transcripts: decryptedTranscripts,
+          }
+        })
+      )
+
+      // 2. Generate meta-story with decrypted sources
+      const { title, summary } = await generateMetaStory(eventsData)
+
+      // 3. Encrypt result
+      const encryptedTitle = await encrypt(title, key)
+      const encryptedSummary = await encrypt(summary, key)
+
+      // 4. Create event with encrypted data
+      const today = new Date().toISOString().split('T')[0]
+      const newEvent = await createEvent({
+        title: encryptedTitle,
+        time_anchor_date: today,
+      })
+
+      // 5. Store encrypted summary and source_event_ids
+      await updateEvent(newEvent.id, {
+        summary: encryptedSummary,
+        status: 'complete',
+        source_event_ids: eventIds,
+      })
+
+      // 6. Navigate to new event
+      clearSelection()
+      navigate(`/event/${newEvent.id}`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to generate meta-story')
+      alert(extractErrorMessage(err, 'Failed to generate meta-story'))
     } finally {
       setGenerating(false)
     }
@@ -82,53 +131,49 @@ export function TimelineScreen() {
       const data = await listEvents()
       setEvents(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load events')
+      setError(extractErrorMessage(err, 'Failed to load events'))
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    if (!isReady) return
+
     const loadEvents = async () => {
       try {
         setLoading(true)
         setError('')
         const data = await listEvents()
-        setEvents(data)
+
+        // Decrypt titles and summaries if encryption key is available
+        if (key) {
+          const decryptedEvents = await Promise.all(
+            data.map(async (event) => ({
+              ...event,
+              title: event.title ? await decrypt(event.title, key) : null,
+              summary: event.summary ? await decrypt(event.summary, key) : null,
+            }))
+          )
+          setEvents(decryptedEvents)
+        } else {
+          setEvents(data)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load events')
+        setError(extractErrorMessage(err, 'Failed to load events'))
       } finally {
         setLoading(false)
       }
     }
     loadEvents()
-  }, [])
+  }, [key, isReady])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading memories...</p>
-        </div>
-      </div>
-    )
+  if (!isReady || loading) {
+    return <LoadingScreen message="Loading memories..." />
   }
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorFallback message={error} onRetry={handleRetry} />
   }
 
   const completedCount = events.filter(e => e.status === 'complete').length
@@ -141,12 +186,12 @@ export function TimelineScreen() {
         title=""
         secondary={
           multiSelectMode
-            ? { label: 'Done', onClick: () => { setMultiSelectMode(false); setSelectedIds(new Set()) } }
+            ? { label: 'Done', onClick: clearSelection }
             : { label: 'Logout', onClick: handleLogout }
         }
         primary={
           completedCount >= 2 && !multiSelectMode
-            ? { label: 'Select', onClick: () => setMultiSelectMode(true) }
+            ? { label: 'Select', onClick: enterSelectionMode }
             : undefined
         }
         tertiaryLeft={
@@ -164,13 +209,16 @@ export function TimelineScreen() {
                   </option>
                 ))}
               </select>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
-                title="Dashboard"
-              >
-                📊
-              </button>
+              {profile?.is_admin && (
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
+                  title="Dashboard"
+                  aria-label="Admin Dashboard"
+                >
+                  📊
+                </button>
+              )}
             </div>
           )
         }
@@ -193,8 +241,10 @@ export function TimelineScreen() {
               No memories yet. Start recording your life story!
             </p>
             <button
+              type="button"
               onClick={() => navigate('/record')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium"
+              disabled={loading || generating}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
             >
               Record Your First Memory
             </button>
@@ -218,6 +268,7 @@ export function TimelineScreen() {
         {events.length > 0 && (
           <>
             <button
+              type="button"
               onClick={() => navigate('/record')}
               className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
               aria-label="Add new memory"

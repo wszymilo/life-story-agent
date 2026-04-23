@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { LoadingScreen } from './components/LoadingScreen'
 import { LoginScreen } from './components/LoginScreen'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { RecordingScreen } from './components/RecordingScreen'
@@ -16,11 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (!user) {
@@ -34,11 +31,7 @@ function OnboardingCheck({ children, isOnboardingRoute = false }: { children: Re
   const { user, loading, profileLoading, isProfileComplete } = useAuth()
 
   if (loading || profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (user && isProfileComplete === true) {

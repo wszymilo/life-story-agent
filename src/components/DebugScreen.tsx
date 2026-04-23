@@ -47,6 +47,7 @@ export function DebugScreen() {
             <div className="space-y-2">
               <p className="text-green-600 font-medium">Token present</p>
               <button
+                type="button"
                 onClick={handleCopy}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
@@ -65,6 +66,8 @@ export function DebugScreen() {
             find key starting with "sb-" → paste token value
           </p>
           <textarea
+            id="token-input"
+            name="token"
             value={inputToken}
             onChange={(e) => setInputToken(e.target.value)}
             placeholder="Paste token here..."
@@ -72,6 +75,7 @@ export function DebugScreen() {
             rows={4}
           />
           <button
+            type="button"
             onClick={handleRestore}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
@@ -82,6 +86,7 @@ export function DebugScreen() {
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-2">Actions</h2>
           <button
+            type="button"
             onClick={handleClear}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >

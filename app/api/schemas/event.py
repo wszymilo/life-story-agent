@@ -64,3 +64,32 @@ class AudioRecordingResponse(BaseModel):
 
 class EventWithRecordingsResponse(EventResponse):
     recordings: list[AudioRecordingResponse] = []
+
+
+class MetaGenerateRequest(BaseModel):
+    sources: list[dict[str, object]]
+
+
+class TranscriptUpdateRequest(BaseModel):
+    transcript: str
+
+
+class AnalyzeRequest(BaseModel):
+    transcript: str
+
+
+class FollowUpRequest(BaseModel):
+    transcript: str
+    existing_questions: list[str] = []
+
+
+class QuestionCreateRequest(BaseModel):
+    question_text: str
+    question_type: Optional[str] = None
+    context: Optional[str] = None
+    target_area: Optional[str] = None
+
+
+class CompleteEventRequest(BaseModel):
+    transcripts: list[str]
+    questions_and_answers: list[dict[str, str]] = []

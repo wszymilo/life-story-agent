@@ -1,4 +1,4 @@
-import { fetchApi } from './api'
+import { fetchJson } from './api'
 
 const DEBUG = import.meta.env.DEV
 
@@ -17,6 +17,7 @@ export interface UserProfile {
   preferred_language?: string
   created_at: string
   relatives: []
+  is_admin?: boolean
 }
 
 export interface UserUpdate {
@@ -27,44 +28,29 @@ export interface UserUpdate {
 
 export async function getUserProfile(): Promise<UserProfile> {
   log('debug', 'Fetching user profile')
-  const response = await fetchApi('/api/users/me')
-  if (!response.ok) {
-    log('error', 'Profile fetch failed:', response.status, response.statusText)
-    throw new Error('Failed to fetch user profile')
-  }
-  const data = await response.json()
+  const data = await fetchJson<UserProfile>('/api/users/me')
   log('debug', 'Profile fetched for user:', data.id)
   return data
 }
 
 export async function updateUserProfile(data: UserUpdate): Promise<UserProfile> {
   log('debug', 'Updating user profile:', data)
-  const response = await fetchApi('/api/users/me', {
+  const result = await fetchJson<UserProfile>('/api/users/me', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    log('error', 'Profile update failed:', response.status, response.statusText)
-    throw new Error('Failed to update user profile')
-  }
-  const result = await response.json()
   log('debug', 'Profile updated for user:', result.id)
   return result
 }
 
 export async function updatePreferredLanguage(language: string): Promise<UserProfile> {
   log('debug', 'Updating preferred language:', language)
-  const response = await fetchApi('/api/users/me/language', {
+  const result = await fetchJson<UserProfile>('/api/users/me/language', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ preferred_language: language }),
   })
-  if (!response.ok) {
-    log('error', 'Language update failed:', response.status, response.statusText)
-    throw new Error('Failed to update preferred language')
-  }
-  const result = await response.json()
   log('debug', 'Language updated to:', language)
   return result
 }
