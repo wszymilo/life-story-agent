@@ -5,6 +5,7 @@ Generates a combined story from multiple selected events.
 
 import time
 
+from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
 from langfuse import observe
 from config import get_settings
@@ -116,6 +117,9 @@ The output should be a single cohesive story, NOT separate summaries of each sto
         )
 
         summary = response.choices[0].message.content or ""
+
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
     except Exception as e:
         raise RuntimeError(f"Meta-story summary generation failed: {str(e)}")
 
@@ -136,6 +140,9 @@ title (max 100 chars) for this life story in {language}."""
 
         title = title_response.choices[0].message.content or "My Life Story"
         title = title.strip().strip('"').strip("'")[:100]
+
+        usage = _extract_usage(title_response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
     except Exception:
         title = "My Life Story"
 

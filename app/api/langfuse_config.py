@@ -8,7 +8,14 @@ from datetime import datetime, timezone
 from langfuse import Langfuse
 from langfuse.api.ingestion.types import IngestionEvent_TraceCreate, TraceBody
 
-__all__ = ["init_langfuse", "get_langfuse", "start_trace", "update_trace", "log_score"]
+__all__ = [
+    "init_langfuse",
+    "get_langfuse",
+    "start_trace",
+    "update_trace",
+    "log_score",
+    "report_generation_usage",
+]
 
 from api.logging_config import get_logger
 from config import get_settings
@@ -125,3 +132,46 @@ def log_score(
         logger.debug("langfuse_score_logged", trace_id=trace_id, name=name, value=value)
     except Exception as e:
         logger.warning("langfuse_score_failed", error=str(e))
+
+
+def report_generation_usage(
+    model: str,
+    usage: dict[str, int] | None = None,
+) -> None:
+    """Report token usage for the current LLM generation to LangFuse.
+
+    Must be called from within an @observe() decorated function (or child)
+    while the generation span is still active.  LangFuse calculates costs
+    server-side when model + usage_details are provided.
+
+    Args:
+        model: Model name (e.g. "gpt-4o-mini", "whisper-1").
+        usage: Dict with token counts. Expected keys:
+            - "prompt_tokens" or "input"
+            - "completion_tokens" or "output"
+            - "total_tokens" or "total"
+    """
+    if not _langfuse_client or not usage:
+        return
+
+    try:
+        input_tokens = usage.get("prompt_tokens") or usage.get("input") or 0
+        output_tokens = usage.get("completion_tokens") or usage.get("output") or 0
+        total_tokens = usage.get("total_tokens") or usage.get("total") or (input_tokens + output_tokens)
+
+        _langfuse_client.update_current_generation(
+            model=model,
+            usage_details={
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": total_tokens,
+            },
+        )
+        logger.debug(
+            "langfuse_usage_reported",
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+    except Exception as e:
+        logger.warning("langfuse_usage_report_failed", error=str(e))

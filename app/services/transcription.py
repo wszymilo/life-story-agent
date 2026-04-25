@@ -2,6 +2,7 @@ import io
 import time
 
 import httpx
+from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
 from langfuse import observe
 from config import get_settings
@@ -81,6 +82,8 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl", langfus
             duration_ms=round(duration_ms, 2),
             transcript_length=transcript_length,
         )
+
+        report_generation_usage(model="whisper-1", usage=None)
 
         return transcript
 

@@ -2,6 +2,7 @@ import time
 from datetime import date, datetime
 from typing import Any, Optional
 
+from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
 from langfuse import observe
 from api.schemas.summary import GroundingValidation, SummaryWithTitle
@@ -179,6 +180,9 @@ Do NOT add any information not present in the source material."""
 
         summary = response.choices[0].message.content or ""
 
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
+
         return summary
 
     except Exception as e:
@@ -228,6 +232,9 @@ Language: {language}"""
         if result is None:
             return False, "Validation parsing failed"
 
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
+
         return result.is_grounded, result.reason if result.reason else None
 
     except Exception:
@@ -271,6 +278,9 @@ Requirements:
 
         summary = response.choices[0].message.content or ""
 
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
+
         return summary
 
     except Exception as e:
@@ -313,6 +323,9 @@ Return ONLY the title, nothing else."""
         )
 
         title = response.choices[0].message.content or ""
+
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
 
         # Clean up title
         title = title.strip().strip('"').strip("'")
@@ -370,6 +383,10 @@ Language: {language}"""
         )
 
         date_str = response.choices[0].message.content or ""
+
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
+
         date_str = date_str.strip().strip('"').strip("'")
 
         if not date_str or date_str.upper() == "NONE":

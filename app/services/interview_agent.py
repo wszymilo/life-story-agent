@@ -1,5 +1,6 @@
 import time
 
+from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
 from langfuse import observe
 from api.schemas.interview import FollowUpQuestion, TranscriptAnalysis
@@ -94,6 +95,9 @@ The transcript is in {display_language} - extract information accordingly."""
 
         duration_ms = (time.perf_counter() - start_time) * 1000
         result = response.choices[0].message.parsed
+
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
 
         logger.info(
             "transcript_analysis_completed",
@@ -191,6 +195,9 @@ Avoid questions that have already been asked (see existing questions below).{exi
 
         duration_ms = (time.perf_counter() - start_time) * 1000
         result = response.choices[0].message.parsed
+
+        usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
 
         logger.info(
             "follow_up_question_completed",
