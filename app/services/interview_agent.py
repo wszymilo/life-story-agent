@@ -40,7 +40,7 @@ def _extract_usage(response) -> dict | None:
     return None
 
 
-@observe()
+@observe(as_type="generation")
 async def analyze_transcript(
     transcript: str,
     language: str = "pl",
@@ -123,7 +123,7 @@ The transcript is in {display_language} - extract information accordingly."""
         raise_openai_error(e, "Analysis")
 
 
-@observe()
+@observe(as_type="generation")
 async def generate_follow_up_question(
     transcript: str,
     existing_questions: list[str],

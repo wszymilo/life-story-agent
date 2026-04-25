@@ -26,7 +26,7 @@ def _extract_usage(response) -> dict | None:
     return None
 
 
-@observe()
+@observe(as_type="generation")
 async def generate_meta_story(
     sources: list[dict],
     language: str = "pl",

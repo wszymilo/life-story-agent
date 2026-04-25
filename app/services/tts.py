@@ -19,7 +19,7 @@ VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-202
 VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]
 
 
-@observe()
+@observe(as_type="generation")
 async def generate_speech(
     text: str,
     voice: str = "nova",

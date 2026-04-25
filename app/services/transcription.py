@@ -37,7 +37,7 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl", trace_id: s
     return await transcribe_audio_data(audio_content, language, langfuse_trace_id=trace_id)
 
 
-@observe()
+@observe(as_type="generation")
 async def transcribe_audio_data(audio_data: bytes, language: str = "pl", langfuse_trace_id: str | None = None) -> str:
     """Transcribe audio bytes using OpenAI Whisper API."""
     if not settings.openai_api_key:

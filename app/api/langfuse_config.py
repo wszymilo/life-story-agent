@@ -4,6 +4,7 @@ Compatible with LangFuse Python SDK v4.x (OpenTelemetry-based).
 """
 
 from datetime import datetime, timezone
+from typing import Any
 
 from langfuse import Langfuse
 from langfuse.api.ingestion.types import IngestionEvent_TraceCreate, TraceBody
@@ -151,27 +152,30 @@ def report_generation_usage(
             - "completion_tokens" or "output"
             - "total_tokens" or "total"
     """
-    if not _langfuse_client or not usage:
+    if not _langfuse_client:
         return
 
     try:
-        input_tokens = usage.get("prompt_tokens") or usage.get("input") or 0
-        output_tokens = usage.get("completion_tokens") or usage.get("output") or 0
-        total_tokens = usage.get("total_tokens") or usage.get("total") or (input_tokens + output_tokens)
+        kwargs: dict[str, Any] = {"model": model}
 
-        _langfuse_client.update_current_generation(
-            model=model,
-            usage_details={
+        if usage:
+            input_tokens = usage.get("prompt_tokens") or usage.get("input") or 0
+            output_tokens = usage.get("completion_tokens") or usage.get("output") or 0
+            total_tokens = usage.get("total_tokens") or usage.get("total") or (input_tokens + output_tokens)
+            kwargs["usage_details"] = {
                 "input": input_tokens,
                 "output": output_tokens,
                 "total": total_tokens,
-            },
-        )
-        logger.debug(
-            "langfuse_usage_reported",
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
+            }
+            logger.debug(
+                "langfuse_usage_reported",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        else:
+            logger.debug("langfuse_model_reported", model=model)
+
+        _langfuse_client.update_current_generation(**kwargs)
     except Exception as e:
         logger.warning("langfuse_usage_report_failed", error=str(e))
