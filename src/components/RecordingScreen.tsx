@@ -61,7 +61,7 @@ export function RecordingScreen() {
       setStatusMessage(t('recording.statusUploading'))
       setError('')
 
-      const eventTitle = title.trim() || t('recording.titlePlaceholder')
+      const eventTitle = title.trim() || t('common.draft')
       const encryptedTitle = await encrypt(eventTitle, key)
       const targetEventId = urlEventId || (await createEvent({ title: encryptedTitle })).id
       setEventId(targetEventId)

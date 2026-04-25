@@ -83,7 +83,7 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/')
     } catch (err) {
-      alert(extractErrorMessage(err, 'Failed to delete'))
+      alert(extractErrorMessage(err, t('eventDetail.loadError')))
       setDeleting(false)
     }
   }
@@ -100,7 +100,7 @@ export function EventDetailScreen() {
       await deleteEvent(event.id)
       navigate('/record')
     } catch (err) {
-      alert(extractErrorMessage(err, 'Failed to delete draft'))
+      alert(extractErrorMessage(err, t('eventDetail.loadError')))
       setDeleting(false)
     }
   }
@@ -178,7 +178,7 @@ export function EventDetailScreen() {
         <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
           <div className="flex justify-between items-start mb-4">
             <h1 className="text-2xl font-bold text-gray-900 flex-1">
-              {event.title || 'Untitled Memory'}
+              {event.title || t('common.untitledMemory')}
             </h1>
           </div>
 
@@ -232,8 +232,8 @@ export function EventDetailScreen() {
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">
                       {recording.recording_type === 'initial_story'
-                        ? 'Initial Story'
-                        : 'Follow-up Answer'}
+                        ? t('common.initialStory')
+                        : t('common.followUpAnswer')}
                     </p>
                     <p className="text-xs text-gray-500">
                       {formatDate(recording.created_at)}
