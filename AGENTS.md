@@ -75,6 +75,7 @@ npm run dev
 - Python imports require running from app/ directory (e.g., `cd app && uv run uvicorn main:app`)
 - The project uses Supabase for PostgreSQL + Auth + Storage
 - Use local `.env` for credentials (never commit to git)
+- **Always check whether the API you are going to use is up-to-date and in line with installed versions of libraries. SDKs and APIs evolve; verify the installed version matches the documentation and examples you are following.**
 
 ## Critical Files
 - `app/` - FastAPI backend (routes, services, models)

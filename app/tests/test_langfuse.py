@@ -45,29 +45,46 @@ def test_start_trace_without_client():
 
 
 def test_start_trace_with_client():
-    """Test start_trace creates a trace."""
+    """Test start_trace creates a trace via legacy ingestion API."""
     mock_client = MagicMock()
-    mock_trace = MagicMock()
-    mock_trace.id = "trace-abc-123"
-    mock_client.trace.return_value = mock_trace
+    mock_client.create_trace_id.side_effect = [
+        "trace-abc-123",
+        "event-id-456",
+    ]
+    mock_client.api.ingestion.batch.return_value = MagicMock(
+        successes=[MagicMock(status=201)], errors=[]
+    )
 
     with patch("api.langfuse_config._langfuse_client", mock_client):
         from api.langfuse_config import start_trace
 
-        result = start_trace("story_session", user_id="user123", metadata={"foo": "bar"})
+        result = start_trace(
+            "story_session",
+            user_id="user123",
+            session_id="session456",
+            metadata={"foo": "bar"},
+        )
         assert result == "trace-abc-123"
-        mock_client.trace.assert_called_once()
+        mock_client.create_trace_id.assert_called()
+        mock_client.api.ingestion.batch.assert_called_once()
+        call_args = mock_client.api.ingestion.batch.call_args
+        batch = call_args.kwargs["batch"]
+        assert len(batch) == 1
+        assert batch[0].body.id == "trace-abc-123"
+        assert batch[0].body.name == "story_session"
+        assert batch[0].body.user_id == "user123"
+        assert batch[0].body.session_id == "session456"
 
 
 def test_log_score():
-    """Test log_score attaches a score to a trace."""
+    """Test log_score attaches a score to a trace via create_score."""
     mock_client = MagicMock()
 
     with patch("api.langfuse_config._langfuse_client", mock_client):
         from api.langfuse_config import log_score
 
         log_score("trace-123", "factual_accuracy", 0.95, "Great summary")
-        mock_client.score.assert_called_once_with(
+        mock_client.create_score.assert_called_once_with(
             trace_id="trace-123",
             name="factual_accuracy",
             value=0.95,
@@ -75,15 +92,13 @@ def test_log_score():
         )
 
 
-def test_update_trace():
-    """Test update_trace updates trace metadata."""
+def test_update_trace_is_noop_in_v4():
+    """Test update_trace is a no-op in LangFuse v4 SDK."""
     mock_client = MagicMock()
 
     with patch("api.langfuse_config._langfuse_client", mock_client):
         from api.langfuse_config import update_trace
 
         update_trace("trace-123", metadata={"status": "complete"}, status="complete")
-        mock_client.trace.assert_called_once_with(
-            id="trace-123",
-            metadata={"status": "complete"},
-        )
+        # In v4, trace update is not supported via legacy API; should be a no-op
+        mock_client.api.ingestion.batch.assert_not_called()

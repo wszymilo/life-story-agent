@@ -73,6 +73,7 @@ async def create_event(
     trace_id = start_trace(
         name="story_session",
         user_id=str(current_user.id),
+        session_id=str(current_user.id),
         metadata={"event_title": event.title, "operation": "create_event"},
     )
 
@@ -495,6 +496,7 @@ async def generate_meta_story_endpoint(
     trace_id = start_trace(
         name="meta_story",
         user_id=str(current_user.id),
+        session_id=str(current_user.id),
         metadata={"source_count": len(req.sources), "operation": "meta_generate"},
     )
 
