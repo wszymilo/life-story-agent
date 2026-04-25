@@ -2,6 +2,7 @@
 
 import random
 
+from api.langfuse_config import log_score
 from api.logging_config import get_logger
 from api.schemas.evaluation import EvaluationScores, QuestionEvaluationScores
 from config import get_settings
@@ -157,10 +158,11 @@ def evaluate_in_background(
     eval_type: str,
     prompt_text: str,
     summary_text: str,
+    trace_id: str | None = None,
 ) -> None:
     """Schedule evaluation to run in the background without blocking."""
     background_tasks.add_task(
-        _evaluate_and_store, event_id, eval_type, prompt_text, summary_text
+        _evaluate_and_store, event_id, eval_type, prompt_text, summary_text, trace_id
     )
 
 
@@ -170,10 +172,11 @@ def evaluate_question_in_background(
     transcript: str,
     question_text: str,
     existing_questions: list[str],
+    trace_id: str | None = None,
 ) -> None:
     """Schedule question evaluation to run in the background without blocking."""
     background_tasks.add_task(
-        _evaluate_question_and_store, event_id, transcript, question_text, existing_questions
+        _evaluate_question_and_store, event_id, transcript, question_text, existing_questions, trace_id
     )
 
 
@@ -182,13 +185,14 @@ async def _evaluate_and_store(
     eval_type: str,
     prompt_text: str,
     summary_text: str,
+    trace_id: str | None = None,
 ) -> None:
     """Internal: evaluate and store scores in database (content-free)."""
     result = await evaluate_output(prompt_text, summary_text, eval_type)
     if not result:
         return
 
-    await _store_scores(event_id, eval_type, result)
+    await _store_scores(event_id, eval_type, result, trace_id)
 
 
 async def _evaluate_question_and_store(
@@ -196,21 +200,23 @@ async def _evaluate_question_and_store(
     transcript: str,
     question_text: str,
     existing_questions: list[str],
+    trace_id: str | None = None,
 ) -> None:
     """Internal: evaluate question and store scores in database (content-free)."""
     result = await evaluate_question(transcript, question_text, existing_questions)
     if not result:
         return
 
-    await _store_question_scores(event_id, result)
+    await _store_question_scores(event_id, result, trace_id)
 
 
 async def _store_scores(
     event_id: str,
     eval_type: str,
     result: EvaluationScores,
+    trace_id: str | None = None,
 ) -> None:
-    """Store evaluation scores (no content)."""
+    """Store evaluation scores (no content) and log to LangFuse."""
     supabase = await get_supabase_client()
 
     try:
@@ -227,12 +233,20 @@ async def _store_scores(
     except Exception as e:
         logger.error("eval_store_failed", error=str(e))
 
+    # Log scores to LangFuse trace
+    if trace_id:
+        log_score(trace_id, "factual_accuracy", result.factual_accuracy or 0, f"eval_type={eval_type}")
+        log_score(trace_id, "coherence", result.coherence or 0, f"eval_type={eval_type}")
+        log_score(trace_id, "completeness", result.completeness or 0, f"eval_type={eval_type}")
+        log_score(trace_id, "overall_score", result.overall_score or 0, f"eval_type={eval_type}")
+
 
 async def _store_question_scores(
     event_id: str,
     result: QuestionEvaluationScores,
+    trace_id: str | None = None,
 ) -> None:
-    """Store question evaluation scores (no content)."""
+    """Store question evaluation scores (no content) and log to LangFuse."""
     supabase = await get_supabase_client()
 
     try:
@@ -248,6 +262,15 @@ async def _store_question_scores(
         logger.info("question_eval_stored", event_id=event_id)
     except Exception as e:
         logger.error("question_eval_store_failed", error=str(e))
+
+    # Log question quality scores to LangFuse trace
+    if trace_id:
+        log_score(trace_id, "question_relevance", result.relevance or 0)
+        log_score(trace_id, "question_specificity", result.specificity or 0)
+        log_score(trace_id, "question_open_endedness", result.open_endedness or 0)
+        log_score(trace_id, "question_diversity", result.diversity or 0)
+        log_score(trace_id, "question_expected_richness", result.expected_richness or 0)
+        log_score(trace_id, "question_overall_score", result.overall_score or 0)
 
 
 async def store_evaluation_scores(

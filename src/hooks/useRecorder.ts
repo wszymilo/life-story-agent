@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export interface RecorderState {
   isRecording: boolean
@@ -18,6 +19,7 @@ export interface RecorderResult {
 }
 
 export function useRecorder(): RecorderResult {
+  const { t } = useTranslation()
   const [isRecording, setIsRecording] = useState(false)
   const [duration, setDuration] = useState(0)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
@@ -78,10 +80,10 @@ export function useRecorder(): RecorderResult {
         setDuration((prev) => prev + 1)
       }, 1000)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to access microphone'
+      const message = err instanceof Error ? err.message : t('audioRecorder.microphoneError')
       setError(message)
     }
-  }, [])
+  }, [t])
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {

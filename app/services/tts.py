@@ -1,6 +1,6 @@
 import time
 
-from api.langfuse_config import log_generation
+from api.langfuse_config import log_generation, start_span
 from api.logging_config import get_logger
 from config import get_settings
 from openai import AsyncOpenAI
@@ -19,11 +19,12 @@ VALID_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "gpt-4o-mini-tts-202
 VALID_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"]
 
 
-async def generate_speech (
+async def generate_speech(
     text: str,
     voice: str = "nova",
     model: str = settings.tts_model,
     response_format: str = "mp3",
+    trace_id: str | None = None,
 ) -> tuple[bytes, str]:
     """Generate speech from text using OpenAI TTS API.
 
@@ -59,6 +60,8 @@ async def generate_speech (
     text_length = len(text)
     start_time = time.perf_counter()
 
+    start_span("tts", {"voice": voice, "model": model})
+
     try:
         logger.info(
             "tts_started",
@@ -90,6 +93,7 @@ async def generate_speech (
             prompt=text[:500],
             completion="[audio data]",
             model=model,
+            usage={"characters": text_length},
             metadata={"operation": "tts", "duration_ms": round(duration_ms, 2), "voice": voice},
         )
 
@@ -105,6 +109,14 @@ async def generate_speech (
             error=err_msg,
             error_type=type(e).__name__,
             voice=voice,
+        )
+
+        log_generation(
+            prompt=text[:500],
+            completion="",
+            model=model,
+            metadata={"operation": "tts", "error": err_msg, "error_type": type(e).__name__, "voice": voice},
+            status="error",
         )
 
         raise_openai_error(e, "TTS")

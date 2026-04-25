@@ -1,47 +1,305 @@
-# Life Story Preservation Agent
+<p align="center">
+  <img src="./public/splash.png" alt="Life Story Preservation Agent" width="480">
+</p>
 
-An AI-assisted oral history app for capturing elderly users' life stories through voice interviews.
+<h1 align="center">Life Story Preservation Agent</h1>
+
+<p align="center">
+  <strong>An AI oral historian that helps elderly users capture, organize, and preserve their life memories through natural voice interaction.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/wszymilo/life-story-agent/actions/workflows/ci.yml">
+    <img src="https://github.com/wszymilo/life-story-agent/workflows/CI/badge.svg" alt="CI">
+  </a>
+  <img src="https://img.shields.io/badge/python-3.12-blue.svg?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/node-20-green.svg?logo=node.js&logoColor=white" alt="Node 20">
+  <img src="https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=white" alt="React 18">
+  <img src="https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+</p>
+
+---
+
+## Table of Contents
+
+- [What is this?](#what-is-this)
+- [Key Features](#key-features)
+- [Tech Stack](#tech-stack)
+- [Screens](#screens)
+- [Architecture Highlights](#architecture-highlights)
+- [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Roadmap & Known Limitations](#roadmap--known-limitations)
+- [Documentation](#documentation)
+- [License](#license)
+
+---
+
+## What is this?
+
+The **Life Story Preservation Agent** is a conversational AI system designed to support elderly individuals in gathering and preserving their life stories. The system acts as a patient, curious, and respectful oral historian who treats every life as worthy of documentation.
+
+This project was built as a **bootcamp demo** with a deeply personal design driver: the primary user is an **80-year-old Polish-speaking mother** using an Android smartphone. Every design decision — from large touch targets and voice-first interaction to warm and empathetic AI responses - was made with her in mind.
+
+Users speak their memories naturally. The system transcribes, asks intelligent follow-up questions, anchors stories to a chronological timeline, and ultimately produces shareable legacy documents that families can keep forever.
+
+---
+
+## Key Features
+
+- **Voice-first recording** — One-tap audio capture via MediaRecorder API, transcribed by OpenAI Whisper with Polish language support
+- **AI-powered follow-up questions** — GPT-4o-mini generates gentle, contextual questions to deepen stories (sensory details, emotions, people, places)
+- **Text-to-speech for questions** — Follow-ups are spoken aloud via streaming TTS, so users never need to read small text
+- **Timeline visualization** — All memories organized chronologically with time anchors extracted by AI
+- **Generator-Reviewer pattern** — Two-step AI validation ensures summaries are strictly grounded in source transcripts, preventing hallucinations in family legacy documents
+- **Client-side encryption** — All user content encrypted in the browser with AES-256-GCM before reaching the backend
+- **Meta-story generation** — Combine multiple events into a single flowing narrative with source attribution
+- **ZIP export** — Download complete stories as markdown + original audio/text sources, generated entirely in the browser
+- **Magic link authentication** — No passwords to remember; Supabase Auth sends email magic links
+- **LLM observability** — LangFuse traces track every AI interaction with token usage, cost, and quality scores
+- **LLM-as-judge evaluation** — Automated factual accuracy, coherence, and completeness scoring on a sample of generations
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Frontend** | React, TypeScript, Vite, Tailwind CSS | React 18, Vite 6, TS 5.6, Tailwind 3.4 |
+| **Backend** | Python, FastAPI, Pydantic | Python 3.12, FastAPI 0.115 |
+| **Database** | Supabase PostgreSQL | Managed, with RLS |
+| **Auth** | Supabase Auth | Magic links, JWT |
+| **Storage** | Supabase Storage | Private bucket for audio |
+| **LLM** | OpenAI GPT-4o-mini | Structured outputs, function calling |
+| **STT** | OpenAI Whisper | Polish + multilingual |
+| **TTS** | OpenAI gpt-4o-mini-tts | Streaming audio |
+| **Observability** | LangFuse, Sentry | Traces, costs, scores |
+| **Rate Limiting** | slowapi | Per-endpoint limits |
+| **Testing** | pytest (backend), Vitest + RTL (frontend) | 116 backend tests |
+
+---
+
+## Screens
+
+The PWA follows a linear user flow designed for minimal cognitive load:
+
+1. **Login** — Email input, magic link sent via Supabase Auth
+2. **Onboarding** — Capture name, birth date, country of origin, and relatives
+3. **Timeline** — Chronological view of all life events; tap to explore, tap + to add
+4. **Recording** — Large record button, real-time audio visualization, automatic upload
+5. **Interview** — AI asks follow-up questions via TTS; user records answers or skips
+6. **Summary** — Review the AI-generated grounded summary; listen via TTS
+7. **Event Detail** — View full event with transcripts, Q&A, and audio playback
+8. **Dashboard** — Admin-only evaluation metrics and quality scores
+
+---
+
+## Architecture Highlights
+
+### Progressive Web App (PWA)
+
+Built as a PWA instead of a native app — no app store submission, single codebase, automatic updates. Works on any modern mobile browser with access to MediaRecorder API for audio capture.
+
+### Client-Side Encryption
+
+All user-generated text (titles, summaries, transcripts) is encrypted in the browser with AES-256-GCM via the Web Crypto API before transmission. The backend never sees plaintext user content. Meta-story generation uses a "Dance Flow" pattern: decrypt on client, send plaintext to backend for AI processing, receive result, encrypt, store.
+
+### Generator-Reviewer Pattern
+
+The most critical AI component. Instead of a single LLM call for summaries:
+
+1. **Generator** creates a narrative from transcripts and Q&A
+2. **Reviewer** validates every claim against source material using structured outputs (`response_format=GroundingValidation`)
+3. **Retry loop** with feedback (max 2 retries) if hallucinations are detected
+4. **Title + time anchor** extracted in separate validated calls
+
+This ensures that a fabricated detail never makes it into a family legacy document.
+
+### LangFuse Observability
+
+Every user session is traced end-to-end: transcript analysis, follow-up generation, summary creation, TTS calls, and evaluation scoring. Token usage and estimated costs are attached to each trace. Question quality scores (relevance, specificity, open-endedness, diversity, expected richness) are logged for continuous improvement.
+
+---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.12+ with `uv`
-- Node.js 18+ with npm
-- Docker (for local PostgreSQL)
+- Node.js 20+ with npm
+- Supabase project (free tier works)
+- OpenAI API key
 
-### Local Development
+### 1. Clone & Install
 
-**Backend:**
+```bash
+git clone https://github.com/wszymilo/life-story-agent.git
+cd life-story-agent
+```
+
+### 2. Backend
+
 ```bash
 cd app
 uv venv
 uv sync
-uv run uvicorn app.main:app --reload
+uv run uvicorn main:app --reload
 ```
 
-**Frontend:**
+Backend runs at `http://localhost:8000`  
+Health check: `http://localhost:8000/health`
+
+### 3. Frontend
+
+In a new terminal (from project root):
+
 ```bash
 npm install
 npm run dev
 ```
 
-**Local Postgres (optional):**
+Frontend runs at `http://localhost:5173`  
+Auto-proxies `/api/*` to `http://localhost:8000`
+
+### 4. Environment
+
+Copy `.env.example` to `.env` and fill in your credentials. See [Environment Variables](#environment-variables) below.
+
+### 5. Database Migrations
+
+Run the SQL migrations in `supabase/migrations/` against your Supabase project.
+
+---
+
+## Environment Variables
+
+### Backend (`.env` in project root)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
+| `SUPABASE_JWT_SECRET` | Yes | JWT secret for token validation |
+| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `OPENAI_MODEL` | No | LLM model (default: `gpt-4o-mini`) |
+| `TTS_MODEL` | No | TTS model (default: `gpt-4o-mini-tts`) |
+| `ENVIRONMENT` | No | `development` or `production` |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins |
+| `MAX_META_STORY_SELECT` | No | Max events for meta-story (default: `10`) |
+| `ADMIN_EMAIL` | No | Email for admin dashboard access |
+| `SENTRY_DSN` | No | Sentry error tracking DSN |
+| `LANGFUSE_PUBLIC_KEY` | No | LangFuse public key for tracing |
+| `LANGFUSE_SECRET_KEY` | No | LangFuse secret key for tracing |
+| `LANGFUSE_BASE_URL` | No | LangFuse host (default: `https://cloud.langfuse.com`) |
+| `EVAL_ENABLED` | No | Enable LLM-as-judge evaluation (`true`/`false`) |
+| `EVAL_SAMPLE_RATE` | No | Fraction of sessions to evaluate (default: `0.1`) |
+
+### Frontend (Vite — also in `.env` or `.env.local`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `VITE_API_URL` | No | Backend URL (default: `http://localhost:8000`) |
+
+---
+
+## Testing
+
+### Backend
+
 ```bash
-docker-compose up
+cd app
+uv run pytest
 ```
 
-## Tech Stack
+**116 tests** covering routes, services, AI pipelines, auth, rate limiting, LangFuse integration, and evaluation. Run before every commit.
 
-- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy
-- **Database**: PostgreSQL (via Supabase)
-- **AI**: OpenAI (GPT-5-nano, Whisper, TTS)
+### Frontend
 
-## Project Structure
-
+```bash
+npm run test:run        # Run once
+npm run test            # Watch mode
 ```
-app/          - Backend (FastAPI)
-src/          - Frontend (React)
-supabase/     - Database migrations
-docs/         - Design documentation
+
+Tests use Vitest + React Testing Library for components and hooks.
+
+### Lint & Type Check
+
+```bash
+# Backend
+cd app && uv run ruff check .
+cd app && uv run mypy main.py --ignore-missing-imports --no-error-summary
+
+# Frontend
+npm run lint
+npm run typecheck
 ```
+
+---
+
+## Deployment
+
+### Backend — Railway
+
+The FastAPI backend is deployed on Railway. The production URL is configured in `vercel.json` for frontend API proxying.
+
+### Frontend — Vercel
+
+The React PWA is deployed on Vercel. `vercel.json` handles:
+- API route proxying to the Railway backend
+- SPA routing (all paths → `index.html`)
+
+### CI/CD
+
+GitHub Actions runs on every push and PR:
+- **Backend**: lint (ruff), type check (mypy), tests (pytest)
+- **Frontend**: lint (eslint), type check (tsc), tests (vitest), build (vite)
+
+See `.github/workflows/ci.yml` for details.
+
+---
+
+## Roadmap & Known Limitations
+
+This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned improvements:
+
+| Area | Current State | Future |
+|------|--------------|--------|
+| **Offline support** | PWA shell caches static assets; no offline recording | Background sync for recordings, offline transcript queue |
+| **Push notifications** | Not implemented | Reminders to continue a story, weekly memory prompts |
+| **Contextual enrichment** | User-provided context only | Wikipedia integration for historical facts matching event dates (world + Poland) |
+| **Map integration** | Places stored but not visualized | Interactive map of life events |
+| **Multi-language** | Polish first, English for demo | Full i18n with user language selection |
+| **Accessibility** | Large text/buttons, voice-first | Screen reader optimization, high contrast mode |
+| **Audio storage** | Supabase Storage private bucket | Compression, lifecycle policies, CDN delivery |
+| **Evaluation** | 10% sample rate, async | Real-time quality gates, A/B testing for prompts |
+| **Native app** | PWA only | Capacitor wrapper for app store distribution |
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [`docs/system-design.md`](./docs/system-design.md) | Full architecture: data flow, encryption, generator-reviewer pattern, Mermaid diagrams |
+| [`docs/api-spec.md`](./docs/api-spec.md) | Complete backend API specification: endpoints, schemas, auth, errors, rate limits |
+| [`docs/project-context1.md`](./docs/project-context1.md) | Original requirements, user stories, and core concept |
+| [`docs/langfuse-plan.md`](./docs/langfuse-plan.md) | LangFuse observability implementation plan |
+| [`AGENTS.md`](./AGENTS.md) | Developer guide: conventions, commands, testing requirements |
+
+---
+
+## License
+
+[MIT](./LICENSE)
+
+---
+
+<p align="center">
+  Built with care for the stories that matter most.
+</p>

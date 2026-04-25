@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEvent, deleteEvent, streamAudio, EventData, AudioRecording } from '../services/events'
 import { TopBar } from '../components/TopBar'
@@ -15,6 +16,7 @@ import { formatDate, formatDuration } from '../lib/date'
 export function EventDetailScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { key, isReady } = useEncryption()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -59,14 +61,14 @@ export function EventDetailScreen() {
           setEvent(data)
         }
       } catch (err) {
-        setError(extractErrorMessage(err, 'Failed to load event'))
+        setError(extractErrorMessage(err, t('eventDetail.loadError')))
       } finally {
         setLoading(false)
       }
     }
 
     loadEvent()
-  }, [eventId, key, isReady])
+  }, [eventId, key, isReady, t])
 
   const handleDelete = () => {
     if (!event?.id) return
@@ -129,16 +131,14 @@ export function EventDetailScreen() {
         onError: () => {
           setPlayingRecordingId(null)
           URL.revokeObjectURL(url)
-          alert('Failed to play audio')
+          alert(t('eventDetail.playError'))
         },
       })
     } catch {
       setPlayingRecordingId(null)
-      alert('Failed to play audio')
+      alert(t('eventDetail.playError'))
     }
   }
-
-
 
   if (loading || decrypting || !isReady) {
     return <LoadingScreen />
@@ -147,9 +147,9 @@ export function EventDetailScreen() {
   if (error || !event) {
     return (
       <ErrorFallback
-        message={error || 'Event not found'}
+        message={error || t('eventDetail.notFound')}
         onRetry={() => navigate('/')}
-        retryLabel="Back to Timeline"
+        retryLabel={t('eventDetail.backToTimeline')}
       />
     )
   }
@@ -162,15 +162,15 @@ export function EventDetailScreen() {
       <TopBar
         title=""
         back={{ href: '/' }}
-        destructive={{ label: deleting ? 'Deleting...' : 'Delete', onClick: handleDelete, loading: deleting }}
-        primary={isDraft ? undefined : { label: exporting ? 'Exporting...' : 'Export', onClick: handleExport, loading: exporting }}
+        destructive={{ label: deleting ? t('common.deleting') : t('common.delete'), onClick: handleDelete, loading: deleting }}
+        primary={isDraft ? undefined : { label: exporting ? t('common.exporting') : t('common.export'), onClick: handleExport, loading: exporting }}
       />
 
       <div className="max-w-2xl mx-auto p-4">
         {isDraft && (
           <div className="flex items-center gap-2 mb-4">
             <span className="text-base bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full font-medium">
-              Draft
+              {t('eventDetail.draftBadge')}
             </span>
           </div>
         )}
@@ -204,7 +204,7 @@ export function EventDetailScreen() {
                 disabled={deleting}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
               >
-                Continue to Interview
+                {t('eventDetail.continueInterview')}
               </button>
               <button
                 type="button"
@@ -212,7 +212,7 @@ export function EventDetailScreen() {
                 disabled={deleting}
                 className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-medium disabled:opacity-50"
               >
-                Record Again
+                {t('eventDetail.recordAgain')}
               </button>
             </div>
           )}
@@ -221,7 +221,7 @@ export function EventDetailScreen() {
         {event.recordings && event.recordings.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Recordings ({event.recordings.length})
+              {t('eventDetail.recordingsTitle', { count: event.recordings.length })}
             </h2>
             <div className="space-y-3">
               {event.recordings.map((recording) => (
@@ -256,7 +256,7 @@ export function EventDetailScreen() {
                           : 'bg-blue-600 text-white'
                       }`}
                       aria-label={
-                        playingRecordingId === recording.id ? 'Pause' : 'Play recording'
+                        playingRecordingId === recording.id ? t('common.pause') : t('common.play')
                       }
                     >
                       {playingRecordingId === recording.id ? (
@@ -280,10 +280,10 @@ export function EventDetailScreen() {
           open={showDeleteDialog}
           onClose={() => setShowDeleteDialog(false)}
           onConfirm={handleConfirmDelete}
-          title="Delete Memory"
-          message="Are you sure you want to delete this memory? This cannot be undone."
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
+          title={t('eventDetail.deleteTitle')}
+          message={t('eventDetail.deleteMessage')}
+          confirmLabel={t('common.delete')}
+          cancelLabel={t('common.cancel')}
           destructive
           loading={deleting}
         />
@@ -292,10 +292,10 @@ export function EventDetailScreen() {
           open={showRecordAgainDialog}
           onClose={() => setShowRecordAgainDialog(false)}
           onConfirm={handleConfirmRecordAgain}
-          title="Record Again"
-          message="Are you sure you want to record a new story? This will delete the current draft."
-          confirmLabel="Record Again"
-          cancelLabel="Cancel"
+          title={t('eventDetail.recordAgainTitle')}
+          message={t('eventDetail.recordAgainMessage')}
+          confirmLabel={t('eventDetail.recordAgain')}
+          cancelLabel={t('common.cancel')}
           destructive
           loading={deleting}
         />

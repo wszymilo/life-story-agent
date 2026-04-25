@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
 import { LoadingScreen } from './LoadingScreen'
@@ -23,6 +24,7 @@ type InterviewState = 'loading' | 'analyzing' | 'ready' | 'playing' | 'recording
 export function InterviewScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { key, isReady } = useEncryption()
   const [state, setState] = useState<InterviewState>('loading')
   const [statusMessage, setStatusMessage] = useState<string>('')
@@ -111,7 +113,7 @@ export function InterviewScreen() {
           setState('ready')
         }
       } catch (err) {
-        setError(extractErrorMessage(err, 'Failed to load event'))
+        setError(extractErrorMessage(err, t('interview.loadError')))
         setState('error')
       } finally {
         isLoadingRef.current = false
@@ -119,7 +121,7 @@ export function InterviewScreen() {
     }
 
     loadData()
-  }, [eventId, isReady, key, decryptEventData])
+  }, [eventId, isReady, key, decryptEventData, t])
 
   const playQuestionAudio = async () => {
     if (!currentQuestion || !eventId) return
@@ -132,12 +134,12 @@ export function InterviewScreen() {
           setState('ready')
         },
         onError: () => {
-          setError('Failed to play audio')
+          setError(t('interview.playError'))
           setState('ready')
         },
       })
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to play audio'))
+      setError(extractErrorMessage(err, t('interview.playError')))
       setState('ready')
     }
   }
@@ -155,7 +157,7 @@ export function InterviewScreen() {
       }
       window.location.reload()
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to save response'))
+      setError(extractErrorMessage(err, t('interview.saveError')))
       setState('ready')
       setStatusMessage('')
     }
@@ -183,7 +185,7 @@ export function InterviewScreen() {
       })
       setState('ready')
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to generate next question'))
+      setError(extractErrorMessage(err, t('interview.generateError')))
     } finally {
       setIsGenerating(false)
     }
@@ -202,8 +204,8 @@ export function InterviewScreen() {
       <LoadingScreen
         message={
           state === 'analyzing'
-            ? 'Analyzing your story...'
-            : 'Loading...'
+            ? t('interview.analyzing')
+            : t('interview.loading')
         }
       />
     )
@@ -212,10 +214,10 @@ export function InterviewScreen() {
   if (state === 'error') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Error" />
+        <TopBar title={t('interview.errorTitle')} />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-red-600 mb-4">Something went wrong</h2>
+            <h2 className="text-xl font-semibold text-red-600 mb-4">{t('common.error')}</h2>
             <p className="text-gray-600 mb-4 text-lg">{error}</p>
             <div className="flex gap-4">
               <button
@@ -224,7 +226,7 @@ export function InterviewScreen() {
                 disabled={isGenerating}
                 className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
               >
-                Try Again
+                {t('interview.errorRetry')}
               </button>
               <button
                 type="button"
@@ -232,7 +234,7 @@ export function InterviewScreen() {
                 disabled={isGenerating}
                 className="flex-1 py-3 min-h-12 bg-gray-200 text-gray-700 text-lg rounded-lg font-medium disabled:opacity-50"
               >
-                Go Home
+                {t('interview.errorGoHome')}
               </button>
             </div>
           </div>
@@ -244,20 +246,20 @@ export function InterviewScreen() {
   if (state === 'complete') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Interview Complete"  />
+        <TopBar title={t('interview.completeTitle')}  />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <div className="text-green-600 text-5xl mb-4">✓</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Interview Complete!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('interview.completeHeading')}</h2>
             <p className="text-gray-600 mb-6 text-lg">
-              Thank you for sharing more about your life story.
+              {t('interview.completeMessage')}
             </p>
               <button
                 type="button"
                 onClick={handleEnd}
                 className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium"
               >
-                Go to Timeline
+                {t('interview.goToTimeline')}
               </button>
           </div>
         </div>
@@ -268,8 +270,8 @@ export function InterviewScreen() {
   return (
     <div className="min-h-screen bg-gray-50">
       <TopBar
-        title="Follow-up Question"
-        secondary={{ label: 'End Interview', onClick: handleEnd }}
+        title={t('interview.title')}
+        secondary={{ label: t('interview.endInterview'), onClick: handleEnd }}
         tertiaryLeft={
           <button
             type="button"
@@ -277,14 +279,14 @@ export function InterviewScreen() {
             disabled={isGenerating}
             className="px-4 py-3 min-h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
           >
-            {isGenerating ? 'Generating...' : 'Next Question'}
+            {isGenerating ? t('interview.generating') : t('interview.nextQuestion')}
           </button>
         }
       />
       <div className="max-w-2xl mx-auto p-4">
         <div className="bg-white rounded-lg shadow-md p-6">
           <p className="text-gray-600 mb-6 text-lg">
-            {event?.title || 'Your Life Story'}
+            {event?.title || t('interview.title')}
           </p>
 
           {currentQuestion && (
@@ -298,7 +300,7 @@ export function InterviewScreen() {
                   disabled={state === 'playing'}
                   className="flex-1 py-3 min-h-12 bg-blue-600 text-white text-lg rounded-lg font-medium disabled:opacity-50"
                 >
-                  {state === 'playing' ? 'Playing...' : 'Play Question'}
+                  {state === 'playing' ? t('interview.playing') : t('interview.playQuestion')}
                 </button>
               </div>
             </div>
@@ -306,7 +308,7 @@ export function InterviewScreen() {
 
           <div className="border-t pt-6">
             {showRecordLabel && (
-              <p className="text-gray-600 mb-4 text-lg">Record your answer:</p>
+              <p className="text-gray-600 mb-4 text-lg">{t('interview.recordAnswer')}</p>
             )}
             <AudioRecorder
               onRecordingComplete={handleAudioComplete}

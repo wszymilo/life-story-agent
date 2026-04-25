@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { EventData } from '../services/events'
 
 interface EventCardProps {
@@ -12,6 +13,7 @@ interface EventCardProps {
 
 export function EventCard({ event, onClick, multiSelectMode, selected, onSelect, language = 'pl' }: EventCardProps) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const isDraft = event.status === 'draft'
 
   const handleClick = () => {
@@ -23,7 +25,7 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect,
   }
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Unknown date'
+    if (!dateStr) return t('common.unknownDate')
     try {
       const date = new Date(dateStr)
       const locale = language === 'en' ? 'en-GB' : `${language}-${language.toUpperCase()}`
@@ -63,17 +65,17 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect,
           checked={selected || false}
           onChange={handleCheckboxChange}
           className="mt-1 w-5 h-5 text-blue-600 rounded"
-          aria-label={`Select memory: ${event.title || 'Untitled'}`}
+          aria-label={`${t('common.select')}: ${event.title || t('common.untitled')}`}
         />
       )}
       <div className="flex-1">
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-lg font-semibold text-gray-900 flex-1">
-            {event.title || 'Untitled Memory'}
+            {event.title || t('common.untitledMemory')}
           </h3>
           {isDraft && (
             <span className="text-base bg-yellow-100 text-yellow-800 px-4 py-2 rounded-full font-medium">
-              Draft
+              {t('common.draft')}
             </span>
           )}
         </div>
@@ -98,7 +100,7 @@ export function EventCard({ event, onClick, multiSelectMode, selected, onSelect,
       )}
 
       {isDraft && (
-        <p className="text-sm text-blue-600 mt-2 font-medium">Tap to continue →</p>
+        <p className="text-sm text-blue-600 mt-2 font-medium">{t('common.continue')}</p>
       )}
       </div>
     </div>

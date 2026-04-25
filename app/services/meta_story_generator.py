@@ -5,7 +5,7 @@ Generates a combined story from multiple selected events.
 
 import time
 
-from api.langfuse_config import log_generation
+from api.langfuse_config import log_generation, start_span
 from api.logging_config import get_logger
 from config import get_settings
 from openai import AsyncOpenAI
@@ -14,15 +14,28 @@ settings = get_settings()
 logger = get_logger()
 
 
+def _extract_usage(response) -> dict | None:
+    """Extract token usage from OpenAI response."""
+    if hasattr(response, "usage") and response.usage:
+        return {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens,
+            "total_tokens": response.usage.total_tokens,
+        }
+    return None
+
+
 async def generate_meta_story(
     sources: list[dict],
     language: str = "pl",
+    trace_id: str | None = None,
 ) -> dict:
     """Generate a meta-story from multiple event sources.
 
     Args:
         sources: List of source dicts with title, summary, date, transcripts
         language: Language code (default: pl)
+        trace_id: LangFuse trace ID for observability
 
     Returns:
         Dict with title, summary
@@ -73,6 +86,11 @@ async def generate_meta_story(
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
+    start_span("meta_story_generation", {
+        "source_count": source_count,
+        "language": language,
+    })
+
     system_prompt = f"""You are a life story writer. Your task is to create a 
 cohesive, flowing narrative that combines multiple short stories into one 
 comprehensive life story.
@@ -89,35 +107,73 @@ Guidelines:
 
 The output should be a single cohesive story, NOT separate summaries of each story."""
 
-    logger.debug("meta_story_llm_call", step="generate_summary")
-    response = await client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Create a combined life story from these stories:\n\n{full_content}"}
-        ],
-        max_tokens=4000,
-        temperature=0.7,
-    )
+    try:
+        logger.debug("meta_story_llm_call", step="generate_summary")
+        response = await client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Create a combined life story from these stories:\n\n{full_content}"}
+            ],
+            max_tokens=4000,
+            temperature=0.7,
+        )
 
-    summary = response.choices[0].message.content or ""
+        summary_usage = _extract_usage(response)
+        summary = response.choices[0].message.content or ""
 
-    logger.debug("meta_story_llm_call", step="generate_title")
-    title_system_prompt = f"""You are a title generator. Create a short, descriptive 
+        log_generation(
+            prompt=full_content[:1000],
+            completion=summary,
+            model=settings.openai_model,
+            usage=summary_usage,
+            metadata={"operation": "meta_story_summary", "step": "generate_summary"},
+        )
+    except Exception as e:
+        log_generation(
+            prompt=full_content[:1000],
+            completion="",
+            model=settings.openai_model,
+            metadata={"operation": "meta_story_summary", "error": str(e)},
+            status="error",
+        )
+        raise RuntimeError(f"Meta-story summary generation failed: {str(e)}")
+
+    try:
+        logger.debug("meta_story_llm_call", step="generate_title")
+        title_system_prompt = f"""You are a title generator. Create a short, descriptive 
 title (max 100 chars) for this life story in {language}."""
 
-    title_response = await client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
-            {"role": "system", "content": title_system_prompt},
-            {"role": "user", "content": f"Generate a title for this story:\n\n{summary}"}
-        ],
-        max_tokens=50,
-        temperature=0.5,
-    )
+        title_response = await client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": title_system_prompt},
+                {"role": "user", "content": f"Generate a title for this story:\n\n{summary}"}
+            ],
+            max_tokens=50,
+            temperature=0.5,
+        )
 
-    title = title_response.choices[0].message.content or "My Life Story"
-    title = title.strip().strip('"').strip("'")[:100]
+        title_usage = _extract_usage(title_response)
+        title = title_response.choices[0].message.content or "My Life Story"
+        title = title.strip().strip('"').strip("'")[:100]
+
+        log_generation(
+            prompt=summary[:500],
+            completion=title,
+            model=settings.openai_model,
+            usage=title_usage,
+            metadata={"operation": "meta_story_title", "step": "generate_title"},
+        )
+    except Exception as e:
+        log_generation(
+            prompt=summary[:500],
+            completion="",
+            model=settings.openai_model,
+            metadata={"operation": "meta_story_title", "error": str(e)},
+            status="error",
+        )
+        title = "My Life Story"
 
     source_section = "\n\n---\n\n## Sources\n"
     for i, source in enumerate(sources):

@@ -1,10 +1,14 @@
+import { useTranslation } from 'react-i18next'
+
 interface ErrorFallbackProps {
   message: string
   onRetry?: () => void
   retryLabel?: string
 }
 
-export function ErrorFallback({ message, onRetry, retryLabel = 'Try Again' }: ErrorFallbackProps) {
+export function ErrorFallback({ message, onRetry, retryLabel: retryLabelProp = '' }: ErrorFallbackProps) {
+  const { t } = useTranslation()
+  const retryLabel = retryLabelProp || t('common.tryAgain')
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="text-center max-w-md">

@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import en from '../i18n/locales/en.json'
 
 const mockSession = {
   access_token: 'mock-token-123',
@@ -19,6 +20,40 @@ export const mockSupabase = {
   },
 }
 
+function getTranslation(key: string, options?: Record<string, unknown>): string {
+  const keys = key.split('.')
+  let value: unknown = en
+  for (const k of keys) {
+    if (value && typeof value === 'object' && k in value) {
+      value = (value as Record<string, unknown>)[k]
+    } else {
+      return key
+    }
+  }
+  if (typeof value === 'string') {
+    if (options) {
+      return value.replace(/\{\{(\w+)\}\}/g, (_, varName) => String(options[varName] ?? `{{${varName}}}`))
+    }
+    return value
+  }
+  return key
+}
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabase),
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: getTranslation,
+    i18n: {
+      language: 'en',
+      changeLanguage: vi.fn(),
+      t: getTranslation,
+    },
+  }),
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn(),
+  },
 }))

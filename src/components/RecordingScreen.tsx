@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AudioRecorder } from './AudioRecorder'
 import { TopBar } from './TopBar'
@@ -10,6 +11,7 @@ import { useEncryption } from '../hooks/useEncryption'
 type RecordingState = 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'
 
 export function RecordingScreen() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { eventId: urlEventId } = useParams<{ eventId?: string }>()
   const { key, isReady } = useEncryption()
@@ -36,9 +38,9 @@ export function RecordingScreen() {
       }
       setState('idle')
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to load existing recording'))
+      setError(extractErrorMessage(err, t('recording.loadError')))
     }
-  }, [key])
+  }, [key, t])
 
   useEffect(() => {
     if (urlEventId) {
@@ -49,24 +51,24 @@ export function RecordingScreen() {
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     if (!key) {
-      setError('Encryption key not ready. Please wait and try again.')
+      setError(t('recording.encryptionError'))
       setState('error')
       return
     }
 
     try {
       setState('uploading')
-      setStatusMessage('Uploading your recording...')
+      setStatusMessage(t('recording.statusUploading'))
       setError('')
 
-      const eventTitle = title.trim() || 'My Life Story'
+      const eventTitle = title.trim() || t('recording.titlePlaceholder')
       const encryptedTitle = await encrypt(eventTitle, key)
       const targetEventId = urlEventId || (await createEvent({ title: encryptedTitle })).id
       setEventId(targetEventId)
 
       try {
         setState('transcribing')
-        setStatusMessage('Processing your story...')
+        setStatusMessage(t('recording.statusProcessing'))
         const recording = await addRecording(targetEventId, audioBlob, 'initial_story')
         setRecordingId(recording.id)
         setStatusMessage('')
@@ -79,17 +81,17 @@ export function RecordingScreen() {
           setTranscript(recording.transcript)
           setState('complete')
         } else if (recording.detail && recording.detail.includes('saved')) {
-          setError('Transcription failed. Your recording is saved.')
+          setError(t('recording.transcriptionFailed'))
           setState('error')
         } else {
-          setTranscript('Your recording has been saved. Transcription will be available soon.')
+          setTranscript(t('recording.transcriptPlaceholder'))
           setState('complete')
         }
       } catch (err) {
         setStatusMessage('')
         const errorWithAudio = err as RecordingError
         if (errorWithAudio.audioUrl || errorWithAudio.message?.includes('saved')) {
-          setError('Transcription failed. Your recording is saved.')
+          setError(t('recording.transcriptionFailed'))
           setRecordingId(errorWithAudio.recordingId || targetEventId)
           setState('error')
         } else {
@@ -98,7 +100,7 @@ export function RecordingScreen() {
       }
     } catch (err) {
       setStatusMessage('')
-      setError(extractErrorMessage(err, 'Failed to process recording'))
+      setError(extractErrorMessage(err, t('common.error')))
       setState('error')
     }
   }
@@ -119,7 +121,7 @@ export function RecordingScreen() {
         setError('')
       }
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to retry transcription'))
+      setError(extractErrorMessage(err, t('recording.retryTranscription')))
     } finally {
       setRetrying(false)
     }
@@ -137,7 +139,7 @@ export function RecordingScreen() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Securing your stories...</p>
+          <p className="text-gray-600 text-lg">{t('recording.securing')}</p>
         </div>
       </div>
     )
@@ -146,12 +148,12 @@ export function RecordingScreen() {
   if (state === 'complete') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Story Recorded" back={{ href: '/' }} />
+        <TopBar title={t('recording.successTitle')} back={{ href: '/' }} />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <div className="text-green-600 text-5xl mb-4">✓</div>
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              Story Recorded!
+              {t('recording.successHeading')}
             </h1>
             <p className="text-gray-600 mb-6 text-lg">{transcript}</p>
             <div className="flex flex-col gap-3">
@@ -160,14 +162,14 @@ export function RecordingScreen() {
                 onClick={() => navigate(`/interview/${eventId}`)}
                 className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700"
               >
-                Continue to Interview
+                {t('recording.continueInterview')}
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/')}
                 className="w-full py-3 text-gray-600 hover:text-gray-800 text-lg"
               >
-                Skip for now
+                {t('recording.skipForNow')}
               </button>
             </div>
           </div>
@@ -179,11 +181,11 @@ export function RecordingScreen() {
   if (state === 'error') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <TopBar title="Something went wrong" back={{ href: '/' }} />
+        <TopBar title={t('recording.errorTitle')} back={{ href: '/' }} />
         <div className="max-w-2xl mx-auto p-4">
           <div className="bg-white rounded-lg shadow-md p-6 text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              {retrying ? 'Retrying...' : 'Something went wrong'}
+              {retrying ? t('recording.retrying') : t('recording.errorTitle')}
             </h1>
             <p className="text-gray-600 mb-6 text-lg">{error}</p>
 
@@ -194,7 +196,7 @@ export function RecordingScreen() {
                 disabled={retrying}
                 className="w-full py-4 min-h-12 bg-blue-600 text-white rounded-lg font-medium text-lg hover:bg-blue-700 mb-4 disabled:opacity-50"
               >
-                {retrying ? 'Retrying...' : 'Retry Transcription'}
+                {retrying ? t('recording.retrying') : t('recording.retryTranscription')}
               </button>
             )}
 
@@ -203,7 +205,7 @@ export function RecordingScreen() {
               onClick={handleRetry}
               className="w-full py-4 min-h-12 bg-gray-200 text-gray-700 rounded-lg font-medium text-lg hover:bg-gray-300"
             >
-              Record New Story
+              {t('recording.recordNew')}
             </button>
           </div>
         </div>
@@ -213,17 +215,17 @@ export function RecordingScreen() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopBar title="Tell Your Story" back={{ href: '/' }} />
+      <TopBar title={t('recording.title')} back={{ href: '/' }} />
       <div className="max-w-2xl mx-auto p-4">
         <div className="text-center mb-6">
           <p className="text-gray-600 text-lg">
-            Press the button below and share your life story
+            {t('recording.instruction')}
           </p>
         </div>
 
         <div className="mb-4">
           <label htmlFor="title" className="block text-lg font-medium text-gray-700 mb-2">
-            Title (optional)
+            {t('recording.titleLabel')}
           </label>
           <input
             id="title"
@@ -231,7 +233,7 @@ export function RecordingScreen() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., My childhood in Warsaw"
+            placeholder={t('recording.titlePlaceholder')}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg min-h-12"
             maxLength={100}
           />

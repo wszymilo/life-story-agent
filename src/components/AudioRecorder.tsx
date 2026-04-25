@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRecorder } from '../hooks/useRecorder'
 
 interface AudioRecorderProps {
@@ -10,6 +11,7 @@ interface AudioRecorderProps {
 }
 
 export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disabled, isUploading, statusMessage }: AudioRecorderProps) {
+  const { t } = useTranslation()
   const {
     startRecording,
     stopRecording,
@@ -54,7 +56,7 @@ export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disable
           onClick={handleReset}
           className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium"
         >
-          Try Again
+          {t('common.tryAgain')}
         </button>
       </div>
     )
@@ -65,7 +67,7 @@ export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disable
       {isRecording && (
         <div className="flex items-center gap-3 mb-6">
           <span className="w-4 h-4 bg-red-600 rounded-full animate-pulse" />
-          <span className="text-red-600 font-medium">Recording...</span>
+          <span className="text-red-600 font-medium">{t('common.recording')}</span>
         </div>
       )}
 
@@ -84,7 +86,7 @@ export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disable
           onClick={startRecording}
           disabled={disabled}
           className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Start recording"
+          aria-label={t('audioRecorder.startRecording')}
         >
           <span className="w-8 h-8 bg-white rounded-full" />
         </button>
@@ -95,7 +97,7 @@ export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disable
           onClick={handleStop}
           disabled={disabled}
           className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center hover:bg-gray-800 transition-colors shadow-lg disabled:opacity-50"
-          aria-label="Stop recording"
+          aria-label={t('audioRecorder.stopRecording')}
         >
           <span className="w-8 h-8 bg-white rounded" />
         </button>
@@ -103,18 +105,18 @@ export function AudioRecorder({ onRecordingComplete, onRecordingStopped, disable
 
       {audioBlob && isUploading && (
         <div className="flex flex-col items-center gap-4">
-          <div className="text-blue-600 font-medium">Uploading...</div>
+          <div className="text-blue-600 font-medium">{t('common.uploading')}</div>
         </div>
       )}
 
       {!audioBlob && (
         isRecording ? (
           <p className="text-gray-500 text-sm mt-8 text-center max-w-xs">
-            Tap the square to stop recording
+            {t('audioRecorder.tapToStop')}
           </p>
         ) : (
           <p className="text-gray-500 text-sm mt-8 text-center max-w-xs">
-            Tap the red circle to start recording
+            {t('audioRecorder.tapToStart')}
           </p>
         )
       )}

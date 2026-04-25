@@ -1,6 +1,7 @@
 import uuid
 
 from api.deps import CurrentUser, get_current_user
+from api.langfuse_config import set_trace_context
 from api.logging_config import get_logger
 from api.rate_limit_config import limiter
 from api.schemas.event import AnalyzeRequest, FollowUpRequest, QuestionCreateRequest
@@ -37,6 +38,17 @@ async def analyze_event_transcript(
 
     await get_event_for_user(supabase, event_id_str, user_id_str)
 
+    # Get trace_id from event
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", event_id_str)
+        .execute()
+    )
+    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
+    if trace_id:
+        set_trace_context(trace_id)
+
     if not body.transcript.strip():
         logger.warning("analyze_transcript_empty", event_id=event_id_str)
         raise HTTPException(
@@ -48,7 +60,7 @@ async def analyze_event_transcript(
     user_language = await get_user_language(supabase, user_id_str)
 
     try:
-        analysis = await analyze_transcript(body.transcript, language=user_language)
+        analysis = await analyze_transcript(body.transcript, language=user_language, trace_id=trace_id)
     except Exception as e:
         logger.error("analyze_transcript_failed", event_id=event_id_str, error=str(e))
         raise HTTPException(
@@ -103,6 +115,17 @@ async def generate_follow_up(
 
     await get_event_for_user(supabase, event_id_str, user_id_str)
 
+    # Get trace_id from event
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", event_id_str)
+        .execute()
+    )
+    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
+    if trace_id:
+        set_trace_context(trace_id)
+
     if not body.transcript.strip():
         logger.warning("generate_follow_up_empty", event_id=event_id_str)
         raise HTTPException(
@@ -118,6 +141,7 @@ async def generate_follow_up(
             transcript=body.transcript,
             existing_questions=body.existing_questions,
             language=user_language,
+            trace_id=trace_id,
         )
     except Exception as e:
         logger.error("generate_follow_up_failed", event_id=event_id_str, error=str(e))
@@ -135,6 +159,7 @@ async def generate_follow_up(
             transcript=body.transcript,
             question_text=question.question_text,
             existing_questions=body.existing_questions,
+            trace_id=trace_id,
         )
 
     return {

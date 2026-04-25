@@ -1,9 +1,11 @@
 import { useState, FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { signInWithMagicLink } from '../services/auth'
 
 type LoginState = 'idle' | 'loading' | 'success' | 'error'
 
 export function LoginScreen() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [loginState, setLoginState] = useState<LoginState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -19,7 +21,7 @@ export function LoginScreen() {
       setLoginState('success')
     } else {
       setLoginState('error')
-      setErrorMessage(result.error || 'Failed to send magic link')
+      setErrorMessage(result.error || t('login.errorSend'))
     }
   }
 
@@ -29,12 +31,9 @@ export function LoginScreen() {
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
           <div className="text-green-600 text-5xl mb-4">✓</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Check your email
+            {t('login.successTitle')}
           </h1>
-          <p className="text-gray-600">
-            We sent a magic link to <strong>{email}</strong>. Click the link
-            in the email to sign in.
-          </p>
+          <p className="text-gray-600" dangerouslySetInnerHTML={{ __html: t('login.successMessage', { email }) }} />
         </div>
       </div>
     )
@@ -45,16 +44,16 @@ export function LoginScreen() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Life Story Agent
+            {t('app.name')}
           </h1>
           <p className="text-gray-600 mt-2">
-            Preserve your precious memories
+            {t('app.tagline')}
           </p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">
-            Sign in with Email
+            {t('login.signInHeading')}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -63,7 +62,7 @@ export function LoginScreen() {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Email address
+                {t('login.emailLabel')}
               </label>
               <input
                 id="email"
@@ -72,7 +71,7 @@ export function LoginScreen() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t('login.emailPlaceholder')}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
                 disabled={loginState === 'loading'}
               />
@@ -87,13 +86,13 @@ export function LoginScreen() {
               disabled={loginState === 'loading'}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loginState === 'loading' ? 'Sending...' : 'Send Magic Link'}
+              {loginState === 'loading' ? t('login.sending') : t('login.sendMagicLink')}
             </button>
           </form>
         </div>
 
         <p className="text-center text-gray-500 text-sm mt-6">
-          We'll email you a magic link. Click it to sign in instantly.
+          {t('login.magicLinkInfo')}
         </p>
       </div>
     </div>
