@@ -2,8 +2,8 @@ import io
 import time
 
 import httpx
-from api.langfuse_config import log_generation, start_span
 from api.logging_config import get_logger
+from langfuse import observe
 from config import get_settings
 from openai import AsyncOpenAI
 from services.openai_utils import raise_openai_error
@@ -25,7 +25,7 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl", trace_id: s
         storage = StorageService()
         audio_content = await storage.download(audio_url)
         logger.debug("transcription_downloaded", size_bytes=len(audio_content))
-        return await transcribe_audio_data(audio_content, language, trace_id=trace_id)
+        return await transcribe_audio_data(audio_content, language, langfuse_trace_id=trace_id)
 
     # Fallback: try direct HTTP download for non-Supabase URLs
     async with httpx.AsyncClient() as client:
@@ -33,10 +33,11 @@ async def transcribe_audio_url(audio_url: str, language: str = "pl", trace_id: s
         response.raise_for_status()
         audio_content = response.content
 
-    return await transcribe_audio_data(audio_content, language, trace_id=trace_id)
+    return await transcribe_audio_data(audio_content, language, langfuse_trace_id=trace_id)
 
 
-async def transcribe_audio_data(audio_data: bytes, language: str = "pl", trace_id: str | None = None) -> str:
+@observe()
+async def transcribe_audio_data(audio_data: bytes, language: str = "pl", langfuse_trace_id: str | None = None) -> str:
     """Transcribe audio bytes using OpenAI Whisper API."""
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
@@ -50,8 +51,6 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl", trace_i
     audio_file.name = "recording.webm"
 
     start_time = time.perf_counter()
-
-    start_span("transcription", {"language": language})
 
     try:
         logger.info(
@@ -83,14 +82,6 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl", trace_i
             transcript_length=transcript_length,
         )
 
-        log_generation(
-            prompt="[audio data]",
-            completion=transcript,
-            model="whisper-1",
-            usage={"duration_minutes": round(len(audio_data) / (180 * 1024), 2)},
-            metadata={"operation": "transcription", "duration_ms": round(duration_ms, 2)},
-        )
-
         return transcript
 
     except Exception as e:
@@ -102,14 +93,6 @@ async def transcribe_audio_data(audio_data: bytes, language: str = "pl", trace_i
             duration_ms=round(duration_ms, 2),
             error=err_msg,
             error_type=type(e).__name__,
-        )
-
-        log_generation(
-            prompt="[audio data]",
-            completion="",
-            model="whisper-1",
-            metadata={"operation": "transcription", "error": err_msg, "error_type": type(e).__name__},
-            status="error",
         )
 
         raise_openai_error(e, "Transcription")

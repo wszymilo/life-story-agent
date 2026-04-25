@@ -5,8 +5,8 @@ Generates a combined story from multiple selected events.
 
 import time
 
-from api.langfuse_config import log_generation, start_span
 from api.logging_config import get_logger
+from langfuse import observe
 from config import get_settings
 from openai import AsyncOpenAI
 
@@ -25,17 +25,18 @@ def _extract_usage(response) -> dict | None:
     return None
 
 
+@observe()
 async def generate_meta_story(
     sources: list[dict],
     language: str = "pl",
-    trace_id: str | None = None,
+    langfuse_trace_id: str | None = None,
 ) -> dict:
     """Generate a meta-story from multiple event sources.
 
     Args:
         sources: List of source dicts with title, summary, date, transcripts
         language: Language code (default: pl)
-        trace_id: LangFuse trace ID for observability
+        langfuse_trace_id: LangFuse trace ID for observability
 
     Returns:
         Dict with title, summary
@@ -86,11 +87,6 @@ async def generate_meta_story(
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    start_span("meta_story_generation", {
-        "source_count": source_count,
-        "language": language,
-    })
-
     system_prompt = f"""You are a life story writer. Your task is to create a 
 cohesive, flowing narrative that combines multiple short stories into one 
 comprehensive life story.
@@ -119,24 +115,8 @@ The output should be a single cohesive story, NOT separate summaries of each sto
             temperature=0.7,
         )
 
-        summary_usage = _extract_usage(response)
         summary = response.choices[0].message.content or ""
-
-        log_generation(
-            prompt=full_content[:1000],
-            completion=summary,
-            model=settings.openai_model,
-            usage=summary_usage,
-            metadata={"operation": "meta_story_summary", "step": "generate_summary"},
-        )
     except Exception as e:
-        log_generation(
-            prompt=full_content[:1000],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "meta_story_summary", "error": str(e)},
-            status="error",
-        )
         raise RuntimeError(f"Meta-story summary generation failed: {str(e)}")
 
     try:
@@ -154,25 +134,9 @@ title (max 100 chars) for this life story in {language}."""
             temperature=0.5,
         )
 
-        title_usage = _extract_usage(title_response)
         title = title_response.choices[0].message.content or "My Life Story"
         title = title.strip().strip('"').strip("'")[:100]
-
-        log_generation(
-            prompt=summary[:500],
-            completion=title,
-            model=settings.openai_model,
-            usage=title_usage,
-            metadata={"operation": "meta_story_title", "step": "generate_title"},
-        )
-    except Exception as e:
-        log_generation(
-            prompt=summary[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "meta_story_title", "error": str(e)},
-            status="error",
-        )
+    except Exception:
         title = "My Life Story"
 
     source_section = "\n\n---\n\n## Sources\n"
@@ -191,17 +155,6 @@ title (max 100 chars) for this life story in {language}."""
         source_count=source_count,
         summary_length=len(final_summary),
         title=title[:50],
-    )
-
-    log_generation(
-        prompt=full_content[:1000],
-        completion=final_summary,
-        model=settings.openai_model,
-        metadata={
-            "operation": "meta_story",
-            "duration_ms": round(duration_ms, 2),
-            "source_count": source_count,
-        },
     )
 
     return {

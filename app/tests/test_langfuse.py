@@ -59,33 +59,6 @@ def test_start_trace_with_client():
         mock_client.trace.assert_called_once()
 
 
-def test_log_generation_without_client():
-    """Test log_generation returns early without client."""
-    with patch("api.langfuse_config._langfuse_client", None):
-        from api.langfuse_config import log_generation
-
-        # Should not raise
-        log_generation("prompt", "completion", "gpt-4o-mini")
-
-
-def test_log_generation_with_client():
-    """Test log_generation with client."""
-    mock_client = MagicMock()
-
-    with patch("api.langfuse_config._langfuse_client", mock_client):
-        with patch("api.langfuse_config.trace_ctx", MagicMock(return_value="trace-123")):
-            from api.langfuse_config import log_generation
-
-            log_generation(
-                prompt="prompt",
-                completion="completion",
-                model="gpt-4o-mini",
-                usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
-                metadata={"operation": "test"},
-            )
-            assert mock_client.generation.called
-
-
 def test_log_score():
     """Test log_score attaches a score to a trace."""
     mock_client = MagicMock()
@@ -114,44 +87,3 @@ def test_update_trace():
             id="trace-123",
             metadata={"status": "complete"},
         )
-
-
-def test_compute_cost_gpt4o_mini():
-    """Test cost computation for GPT-4o-mini."""
-    from api.langfuse_config import _compute_cost
-
-    usage = {"prompt_tokens": 1000, "completion_tokens": 500, "total_tokens": 1500}
-    cost = _compute_cost("gpt-4o-mini", usage)
-    # (1000/1M * 0.15) + (500/1M * 0.60) = 0.00015 + 0.0003 = 0.00045
-    assert cost == 0.00045
-
-
-def test_compute_cost_whisper():
-    """Test cost computation for Whisper."""
-    from api.langfuse_config import _compute_cost
-
-    usage = {"duration_minutes": 5.0}
-    cost = _compute_cost("whisper-1", usage)
-    # 5.0 * 0.006 = 0.03
-    assert cost == 0.03
-
-
-def test_compute_cost_tts():
-    """Test cost computation for TTS."""
-    from api.langfuse_config import _compute_cost
-
-    usage = {"characters": 2000}
-    cost = _compute_cost("gpt-4o-mini-tts", usage)
-    # (2000/1000) * 0.015 = 0.03
-    assert cost == 0.03
-
-
-def test_trace_context():
-    """Test trace context get/set."""
-    from api.langfuse_config import get_trace_context, set_trace_context
-
-    set_trace_context("trace-456")
-    assert get_trace_context() == "trace-456"
-
-    set_trace_context(None)
-    assert get_trace_context() is None

@@ -2,8 +2,8 @@ import time
 from datetime import date, datetime
 from typing import Any, Optional
 
-from api.langfuse_config import log_generation, start_span
 from api.logging_config import get_logger
+from langfuse import observe
 from api.schemas.summary import GroundingValidation, SummaryWithTitle
 from config import get_settings
 from openai import AsyncOpenAI
@@ -25,11 +25,12 @@ def _extract_usage(response) -> dict | None:
     return None
 
 
+@observe()
 async def generate_summary(
     transcripts: list[str],
     questions_and_answers: list[dict[str, Any]],
     language: str = "pl",
-    trace_id: str | None = None,
+    langfuse_trace_id: str | None = None,
 ) -> SummaryWithTitle:
     """Generate a grounded summary using Generator-Reviewer pattern.
 
@@ -37,7 +38,7 @@ async def generate_summary(
         transcripts: List of transcript strings from recordings
         questions_and_answers: List of dicts with 'question' and 'answer' keys
         language: Language code (default: pl)
-        trace_id: LangFuse trace ID for observability
+        langfuse_trace_id: LangFuse trace ID for observability
 
     Returns:
         SummaryWithTitle with summary, title, and retry flag
@@ -73,12 +74,6 @@ async def generate_summary(
             content_parts.append(f"Q: {question}\nA: {answer}")
 
     full_content = "\n\n".join(content_parts)
-
-    start_span("summary_generation", {
-        "language": language,
-        "transcript_count": transcript_count,
-        "qa_count": qa_count,
-    })
 
     # Generator step
     summary = await _generate_summary_text(client, full_content, language)
@@ -141,20 +136,6 @@ async def generate_summary(
         has_time_anchor=time_anchor_date is not None,
     )
 
-    log_generation(
-        prompt=full_content[:1000] if full_content else "[no content]",
-        completion=summary,
-        model=settings.openai_model,
-        metadata={
-            "operation": "summary_generation",
-            "duration_ms": round(duration_ms, 2),
-            "was_retried": was_retried,
-            "retry_count": retry_count,
-            "transcript_count": transcript_count,
-            "qa_count": qa_count,
-        },
-    )
-
     return SummaryWithTitle(
         summary=summary,
         title=title,
@@ -163,6 +144,7 @@ async def generate_summary(
     )
 
 
+@observe(as_type="generation")
 async def _generate_summary_text(
     client: AsyncOpenAI,
     content: str,
@@ -195,30 +177,15 @@ Do NOT add any information not present in the source material."""
             temperature=0.7,
         )
 
-        usage = _extract_usage(response)
         summary = response.choices[0].message.content or ""
-
-        log_generation(
-            prompt=content[:500],
-            completion=summary,
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "generate_summary_text"},
-        )
 
         return summary
 
     except Exception as e:
-        log_generation(
-            prompt=content[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "generate_summary_text", "error": str(e)},
-            status="error",
-        )
         raise RuntimeError(f"Summary generation failed: {str(e)}")
 
 
+@observe(as_type="generation")
 async def _validate_grounding(
     client: AsyncOpenAI,
     summary: str,
@@ -257,33 +224,18 @@ Language: {language}"""
             response_format=GroundingValidation,
         )
 
-        usage = _extract_usage(response)
         result = response.choices[0].message.parsed
         if result is None:
             return False, "Validation parsing failed"
 
-        log_generation(
-            prompt=source_content[:500],
-            completion=str(getattr(result, "model_dump", lambda: vars(result))()),
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "validate_grounding", "is_grounded": result.is_grounded},
-        )
-
         return result.is_grounded, result.reason if result.reason else None
 
-    except Exception as e:
-        log_generation(
-            prompt=source_content[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "validate_grounding", "error": str(e)},
-            status="error",
-        )
+    except Exception:
         # On error, assume not grounded to trigger retry
         return False, "Validation error"
 
 
+@observe(as_type="generation")
 async def _generate_summary_with_feedback(
     client: AsyncOpenAI,
     content: str,
@@ -317,30 +269,15 @@ Requirements:
             temperature=0.7,
         )
 
-        usage = _extract_usage(response)
         summary = response.choices[0].message.content or ""
-
-        log_generation(
-            prompt=content[:500],
-            completion=summary,
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "generate_summary_with_feedback", "feedback": feedback[:200]},
-        )
 
         return summary
 
     except Exception as e:
-        log_generation(
-            prompt=content[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "generate_summary_with_feedback", "error": str(e)},
-            status="error",
-        )
         raise RuntimeError(f"Summary regeneration failed: {str(e)}")
 
 
+@observe(as_type="generation")
 async def _generate_title(
     client: AsyncOpenAI,
     summary: str,
@@ -375,19 +312,10 @@ Return ONLY the title, nothing else."""
             temperature=0.7,
         )
 
-        usage = _extract_usage(response)
         title = response.choices[0].message.content or ""
 
         # Clean up title
         title = title.strip().strip('"').strip("'")
-
-        log_generation(
-            prompt=summary[:500],
-            completion=title,
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "generate_title"},
-        )
 
         # Fallback if title is empty
         if not title:
@@ -395,17 +323,11 @@ Return ONLY the title, nothing else."""
 
         return title[:100]  # Limit length
 
-    except Exception as e:
-        log_generation(
-            prompt=summary[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "generate_title", "error": str(e)},
-            status="error",
-        )
+    except Exception:
         return "My Life Story"
 
 
+@observe(as_type="generation")
 async def _extract_time_anchor(
     client: AsyncOpenAI,
     content: str,
@@ -447,17 +369,8 @@ Language: {language}"""
             temperature=0.3,
         )
 
-        usage = _extract_usage(response)
         date_str = response.choices[0].message.content or ""
         date_str = date_str.strip().strip('"').strip("'")
-
-        log_generation(
-            prompt=content[:500],
-            completion=date_str,
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "extract_time_anchor"},
-        )
 
         if not date_str or date_str.upper() == "NONE":
             return None
@@ -474,12 +387,5 @@ Language: {language}"""
 
         return None
 
-    except Exception as e:
-        log_generation(
-            prompt=content[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "extract_time_anchor", "error": str(e)},
-            status="error",
-        )
+    except Exception:
         return None

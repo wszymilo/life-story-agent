@@ -4,7 +4,6 @@ from typing import Optional
 from api.deps import CurrentUser, get_current_user
 from api.langfuse_config import (
     log_score,
-    set_trace_context,
     start_trace,
     update_trace,
 )
@@ -276,6 +275,16 @@ async def add_recording(
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
     supabase = await get_supabase_client()
+
+    # Get trace_id from event for LangFuse tracing
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", str(event_id))
+        .execute()
+    )
+    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
+
     result = await add_recording_to_event(
         supabase=supabase,
         event_id=str(event_id),
@@ -283,6 +292,7 @@ async def add_recording(
         file=file,
         recording_type=recording_type,
         duration_seconds=duration_seconds,
+        langfuse_trace_id=trace_id,
     )
     return result
 
@@ -334,14 +344,12 @@ async def retry_transcribe(
         .execute()
     )
     trace_id = event_response.data[0].get("trace_id") if event_response.data else None
-    if trace_id:
-        set_trace_context(trace_id)
 
     # Get user's preferred language for transcription
     user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
-        transcript = await transcribe_audio_url(recording["audio_url"], language=user_language, trace_id=trace_id)
+        transcript = await transcribe_audio_url(recording["audio_url"], language=user_language, langfuse_trace_id=trace_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -419,8 +427,6 @@ async def complete_event(
         .execute()
     )
     trace_id = event_response.data[0].get("trace_id") if event_response.data else None
-    if trace_id:
-        set_trace_context(trace_id)
 
     result = await complete_event_session(
         supabase=supabase,
@@ -428,7 +434,7 @@ async def complete_event(
         user_id=str(current_user.id),
         transcripts=body.transcripts,
         questions_and_answers=body.questions_and_answers,
-        trace_id=trace_id,
+        langfuse_trace_id=trace_id,
     )
 
     # Update trace with completion metadata
@@ -499,7 +505,7 @@ async def generate_meta_story_endpoint(
         result = await generate_meta_story(
             sources=req.sources,
             language=user_language,
-            trace_id=trace_id,
+            langfuse_trace_id=trace_id,
         )
     except ValueError as e:
         raise HTTPException(
