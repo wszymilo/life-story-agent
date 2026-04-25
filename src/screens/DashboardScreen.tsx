@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { getDashboardStats, DashboardStats } from '../services/evaluation'
 import { TopBar } from '../components/TopBar'
@@ -6,30 +7,31 @@ import { LoadingScreen } from '../components/LoadingScreen'
 import { ErrorFallback } from '../components/ErrorFallback'
 import { extractErrorMessage } from '../lib/errors'
 
-const EVAL_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'summary', label: 'Summary' },
-  { value: 'meta_story', label: 'Meta Story' },
-  { value: 'question', label: 'Question' },
-]
-
 export function DashboardScreen() {
   const navigate = useNavigate();
+  const { t } = useTranslation()
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null)
   const [evalType, setEvalType] = useState('')
 
+  const EVAL_TYPES = [
+    { value: '', label: t('dashboard.allTypes') },
+    { value: 'summary', label: t('dashboard.summary') },
+    { value: 'meta_story', label: t('dashboard.metaStory') },
+    { value: 'question', label: t('dashboard.question') },
+  ]
+
   useEffect(() => {
     setLoading(true)
     getDashboardStats(evalType || undefined)
       .then(setStats)
-      .catch((err) => setError(extractErrorMessage(err, 'Failed to load dashboard')))
+      .catch((err) => setError(extractErrorMessage(err, t('dashboard.loadError'))))
       .finally(() => setLoading(false))
-  }, [evalType])
+  }, [evalType, t])
 
   if (loading) {
-    return <LoadingScreen message="Loading dashboard..." />;
+    return <LoadingScreen message={t('dashboard.loading')} />;
   }
 
   if (error) {
@@ -45,34 +47,34 @@ export function DashboardScreen() {
   if (!stats) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">No data available</div>
+        <div className="text-xl">{t('dashboard.noData')}</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopBar title="Evaluation Dashboard" back={{ href: '/' }} />
+      <TopBar title={t('dashboard.title')} back={{ href: '/' }} />
       <div className="max-w-2xl mx-auto p-4">
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Total Evaluations</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('dashboard.totalEvaluations')}</h2>
           <p className="text-4xl font-bold text-blue-600">{stats.total_evaluations}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Average Scores</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('dashboard.averageScores')}</h2>
           <div className="grid grid-cols-4 gap-4">
-            <ScoreCard label="Accuracy" value={stats.avg_factual_accuracy} />
-            <ScoreCard label="Coherence" value={stats.avg_coherence} />
-            <ScoreCard label="Completeness" value={stats.avg_completeness} />
-            <ScoreCard label="Overall" value={stats.avg_overall_score} />
+            <ScoreCard label={t('dashboard.accuracy')} value={stats.avg_factual_accuracy} />
+            <ScoreCard label={t('dashboard.coherence')} value={stats.avg_coherence} />
+            <ScoreCard label={t('dashboard.completeness')} value={stats.avg_completeness} />
+            <ScoreCard label={t('dashboard.overall')} value={stats.avg_overall_score} />
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Filter by Type</h2>
+            <h2 className="text-lg font-semibold">{t('dashboard.filterByType')}</h2>
             <select
               value={evalType}
               onChange={(e) => setEvalType(e.target.value)}
@@ -86,9 +88,9 @@ export function DashboardScreen() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Recent Evaluations (last 10)</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('dashboard.recentEvaluations')}</h2>
           {stats.recent_evaluations.length === 0 ? (
-            <p className="text-gray-500">No evaluations yet</p>
+            <p className="text-gray-500">{t('dashboard.noEvaluations')}</p>
           ) : (
             <div className="space-y-3">
               {stats.recent_evaluations.map((eval_) => (
@@ -102,10 +104,10 @@ export function DashboardScreen() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-sm">
-                    <ScoreBadge label="Acc" value={eval_.factual_accuracy} />
-                    <ScoreBadge label="Coh" value={eval_.coherence} />
-                    <ScoreBadge label="Comp" value={eval_.completeness} />
-                    <ScoreBadge label="Overall" value={eval_.overall_score} />
+                    <ScoreBadge label={t('dashboard.accuracy')} value={eval_.factual_accuracy} />
+                    <ScoreBadge label={t('dashboard.coherence')} value={eval_.coherence} />
+                    <ScoreBadge label={t('dashboard.completeness')} value={eval_.completeness} />
+                    <ScoreBadge label={t('dashboard.overall')} value={eval_.overall_score} />
                   </div>
                 </div>
               ))}

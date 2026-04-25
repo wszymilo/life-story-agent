@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -18,11 +19,14 @@ export function ConfirmDialog({
   onConfirm,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel: confirmLabelProp = '',
+  cancelLabel: cancelLabelProp = '',
   destructive = false,
   loading = false,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation()
+  const confirmLabel = confirmLabelProp || t('common.confirm')
+  const cancelLabel = cancelLabelProp || t('common.cancel')
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -86,7 +90,7 @@ export function ConfirmDialog({
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
-            {loading ? 'Processing...' : confirmLabel}
+            {loading ? t('common.processing') : confirmLabel}
           </button>
           <button
             type="button"

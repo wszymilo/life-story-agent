@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { updateUserProfile } from '../services/user'
@@ -28,6 +29,7 @@ const COUNTRIES = [
 ]
 
 export function OnboardingScreen() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { refreshProfile } = useAuth()
   const [step, setStep] = useState(1)
@@ -41,13 +43,13 @@ export function OnboardingScreen() {
     setError('')
     if (step === 1) {
       if (!name.trim()) {
-        setError('Please enter your name')
+        setError(t('onboarding.nameError'))
         return
       }
     }
     if (step === 2) {
       if (!birthDate) {
-        setError('Please select your birth date')
+        setError(t('onboarding.birthDateError'))
         return
       }
     }
@@ -62,7 +64,7 @@ export function OnboardingScreen() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!country) {
-      setError('Please select your country')
+      setError(t('onboarding.countryError'))
       return
     }
 
@@ -78,18 +80,18 @@ export function OnboardingScreen() {
       await refreshProfile()
       navigate('/', { replace: true })
     } catch {
-      setError('Failed to save. Please try again.')
+      setError(t('onboarding.saveError'))
       setSaving(false)
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopBar title="Welcome" back={step > 1 ? { action: handleBack } : undefined} />
+      <TopBar title={t('onboarding.welcome')} back={step > 1 ? { action: handleBack } : undefined} />
       <div className="max-w-md mx-auto p-4">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 text-center">
-            Let's get to know you
+            {t('onboarding.heading')}
           </h1>
         </div>
 
@@ -102,7 +104,7 @@ export function OnboardingScreen() {
                   s === step ? 'bg-blue-600' : s < step ? 'bg-green-500' : 'bg-gray-300'
                 }`}
                 role="img"
-                aria-label={`Step ${s} of 3`}
+                aria-label={t('common.stepOf', { step: s, total: 3 })}
               />
             ))}
           </div>
@@ -112,7 +114,7 @@ export function OnboardingScreen() {
           {step === 1 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
-                What is your name?
+                {t('onboarding.nameQuestion')}
               </h2>
               <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
@@ -120,7 +122,7 @@ export function OnboardingScreen() {
                   name="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your full name"
+                  placeholder={t('onboarding.namePlaceholder')}
                   className="w-full px-4 py-4 text-xl border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-12"
                   autoFocus
                 />
@@ -129,7 +131,7 @@ export function OnboardingScreen() {
                   type="submit"
                   className="w-full mt-6 bg-blue-600 text-white py-4 px-6 rounded-lg font-medium text-lg hover:bg-blue-700 min-h-12"
                 >
-                  Next
+                  {t('common.next')}
                 </button>
               </form>
             </div>
@@ -138,7 +140,7 @@ export function OnboardingScreen() {
           {step === 2 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
-                When were you born?
+                {t('onboarding.birthDateQuestion')}
               </h2>
               <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
@@ -156,13 +158,13 @@ export function OnboardingScreen() {
                     onClick={handleBack}
                     className="flex-1 bg-gray-200 text-gray-700 py-4 px-6 rounded-lg font-medium text-lg hover:bg-gray-300 min-h-12"
                   >
-                    Back
+                    {t('common.back')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 bg-blue-600 text-white py-4 px-6 rounded-lg font-medium text-lg hover:bg-blue-700 min-h-12"
                   >
-                    Next
+                    {t('common.next')}
                   </button>
                 </div>
               </form>
@@ -172,7 +174,7 @@ export function OnboardingScreen() {
           {step === 3 && (
             <form onSubmit={handleSubmit}>
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
-                Where are you from?
+                {t('onboarding.countryQuestion')}
               </h2>
               <select
                 name="country"
@@ -181,7 +183,7 @@ export function OnboardingScreen() {
                 className="w-full px-4 py-4 text-xl border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-h-12"
                 autoFocus
               >
-                <option value="">Select your country</option>
+                <option value="">{t('onboarding.countryPlaceholder')}</option>
                 {COUNTRIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -195,14 +197,14 @@ export function OnboardingScreen() {
                   onClick={handleBack}
                   className="flex-1 bg-gray-200 text-gray-700 py-4 px-6 rounded-lg font-medium text-lg hover:bg-gray-300 min-h-12"
                 >
-                  Back
+                  {t('common.back')}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 bg-blue-600 text-white py-4 px-6 rounded-lg font-medium text-lg hover:bg-blue-700 disabled:opacity-50 min-h-12"
                 >
-                  {saving ? 'Saving...' : 'Save'}
+                  {saving ? t('common.saving') : t('common.save')}
                 </button>
               </div>
             </form>

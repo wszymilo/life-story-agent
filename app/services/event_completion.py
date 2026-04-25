@@ -17,12 +17,14 @@ async def complete_event_session(
     user_id: str,
     transcripts: list[str],
     questions_and_answers: list[dict[str, str]],
+    trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Complete an event session: generate summary from plaintext, return result.
 
     Args:
         transcripts: Decrypted transcripts from client.
         questions_and_answers: Decrypted Q&A from client.
+        trace_id: LangFuse trace ID for observability.
 
     Returns:
         Dict with id, title, summary, status (plaintext — client encrypts before storage).
@@ -45,6 +47,7 @@ async def complete_event_session(
             transcripts=transcripts,
             questions_and_answers=questions_and_answers,
             language=user_language,
+            trace_id=trace_id,
         )
     except Exception as e:
         raise HTTPException(

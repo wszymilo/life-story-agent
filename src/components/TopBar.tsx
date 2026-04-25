@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 interface TopBarAction {
   label: string
@@ -34,6 +35,7 @@ export function TopBar({
   children,
 }: TopBarProps) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const handleBack = () => {
     if (back?.href) {
@@ -74,7 +76,7 @@ export function TopBar({
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-                Back
+                {t('common.back')}
               </button>
             )}
             {tertiaryLeft}

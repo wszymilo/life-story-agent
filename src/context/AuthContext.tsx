@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
+import i18n from '../i18n'
 import { supabase } from '../lib/supabase'
 import { getUserProfile, isProfileComplete, UserProfile } from '../services/user'
 
@@ -34,6 +35,11 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
       .then((data) => {
         setProfile(data)
         setProfileLoading(false)
+        // Sync i18n language with user profile preference
+        const lang = data?.preferred_language
+        if (lang && (lang === 'pl' || lang === 'en') && i18n.language !== lang) {
+          i18n.changeLanguage(lang)
+        }
       })
       .catch(() => {
         setProfileLoading(false)
@@ -79,6 +85,11 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
     try {
       const data = await getUserProfile()
       setProfile(data)
+      // Sync i18n language with user profile preference
+      const lang = data?.preferred_language
+      if (lang && (lang === 'pl' || lang === 'en') && i18n.language !== lang) {
+        i18n.changeLanguage(lang)
+      }
     } catch {
       setProfile(null)
     }

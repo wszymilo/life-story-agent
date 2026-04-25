@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { completeEvent, getEvent, updateEvent, EventData, AudioRecording, QuestionAnswer } from '../services/events'
 import { getEventWithQuestions } from '../services/interview'
 import { generateTTS } from '../services/interview'
@@ -16,6 +17,7 @@ type SummaryState = 'loading' | 'ready' | 'playing' | 'error'
 export function SummaryScreen() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { key, isReady } = useEncryption()
   const [state, setState] = useState<SummaryState>('loading')
   const [event, setEvent] = useState<EventData | null>(null)
@@ -86,10 +88,10 @@ export function SummaryScreen() {
       })
       setState('ready')
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to generate summary'))
+      setError(extractErrorMessage(err, t('summary.generateError')))
       setState('error')
     }
-  }, [eventId, key])
+  }, [eventId, key, t])
 
   useEffect(() => {
     if (!eventId || event || !isReady || !key) return
@@ -109,12 +111,12 @@ export function SummaryScreen() {
         },
         onError: () => {
           setState('ready')
-          setError('Playback failed')
+          setError(t('summary.playbackError'))
         },
       })
     } catch (err) {
       setState('ready')
-      setError(extractErrorMessage(err, 'Failed to generate audio'))
+      setError(extractErrorMessage(err, t('summary.generateError')))
     }
   }
 
@@ -123,7 +125,7 @@ export function SummaryScreen() {
   }
 
   if (state === 'loading') {
-    return <LoadingScreen message="Generating your story summary..." />
+    return <LoadingScreen message={t('summary.loading')} />
   }
 
   if (state === 'error') {
@@ -132,11 +134,11 @@ export function SummaryScreen() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopBar title={event?.title || 'Your Story'} />
+      <TopBar title={event?.title || t('summary.yourStory')} />
       <div className="max-w-2xl mx-auto p-4">
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-700 mb-3">
-            Your Life Story
+            {t('summary.yourStory')}
           </h2>
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-700 text-lg leading-relaxed whitespace-pre-wrap">
@@ -157,13 +159,13 @@ export function SummaryScreen() {
             className="w-full py-4 min-h-12 bg-blue-600 text-white text-lg rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isPlaying ? (
-              <span className="animate-pulse">Playing...</span>
+              <span className="animate-pulse">{t('summary.playing')}</span>
             ) : (
               <span className="flex items-center gap-2">
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                Listen to Summary
+                {t('summary.listen')}
               </span>
             )}
           </button>
@@ -173,7 +175,7 @@ export function SummaryScreen() {
             onClick={handleConfirm}
             className="w-full py-4 min-h-12 bg-green-600 text-white text-lg rounded-xl font-medium hover:bg-green-700"
           >
-            Save & Continue to Timeline
+            {t('summary.saveAndContinue')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import JSZip from 'jszip'
 import unidecode from 'unidecode'
+import i18n from '../i18n'
 import { EventData, AudioRecording, streamAudio } from '../services/events'
 
 function sanitizeFilename(name: string): string {
@@ -27,7 +28,7 @@ function generateMarkdown(title: string, summary: string | null, recordings: Aud
   ]
 
   if (summary) {
-    mdLines.push('## Summary')
+    mdLines.push(`## ${i18n.t('export.summary')}`)
     mdLines.push('')
     mdLines.push(summary)
     mdLines.push('')
@@ -35,7 +36,7 @@ function generateMarkdown(title: string, summary: string | null, recordings: Aud
 
   mdLines.push('---')
   mdLines.push('')
-  mdLines.push('## Recordings')
+  mdLines.push(`## ${i18n.t('export.recordings')}`)
   mdLines.push('')
 
   for (const rec of recordings) {
@@ -53,7 +54,7 @@ function generateMarkdown(title: string, summary: string | null, recordings: Aud
   mdLines.push('')
   mdLines.push('---')
   mdLines.push('')
-  mdLines.push('*Exported from Life Story Agent*')
+  mdLines.push(`*${i18n.t('export.exportedFrom')}*`)
 
   return mdLines.join('\n')
 }
@@ -68,7 +69,7 @@ export function useEventExport() {
     try {
       const zip = new JSZip()
 
-      const title = event.title || 'Untitled Story'
+      const title = event.title || i18n.t('export.untitledStory')
       const safeTitle = sanitizeFilename(title)
 
       // Generate markdown and add to root

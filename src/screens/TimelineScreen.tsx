@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { supabase } from '../lib/supabase'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
@@ -19,6 +21,7 @@ import { extractErrorMessage } from '../lib/errors'
 
 export function TimelineScreen() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { profile, refreshProfile } = useAuth()
   const { key, isReady } = useEncryption()
   const [events, setEvents] = useState<EventData[]>([])
@@ -41,9 +44,10 @@ export function TimelineScreen() {
     setChangingLanguage(true)
     try {
       await updatePreferredLanguage(lang)
+      await i18n.changeLanguage(lang)
       await refreshProfile()
     } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to update language'))
+      setError(extractErrorMessage(err, t('timeline.languageError')))
     } finally {
       setChangingLanguage(false)
     }
@@ -126,7 +130,7 @@ export function TimelineScreen() {
       clearSelection()
       navigate(`/event/${newEvent.id}`)
     } catch (err) {
-      alert(extractErrorMessage(err, 'Failed to generate meta-story'))
+      alert(extractErrorMessage(err, t('timeline.combineError') || 'Failed to generate meta-story'))
     } finally {
       setGenerating(false)
     }
@@ -168,16 +172,16 @@ export function TimelineScreen() {
           setEvents(data)
         }
       } catch (err) {
-        setError(extractErrorMessage(err, 'Failed to load events'))
+      setError(extractErrorMessage(err, t('timeline.loadError')))
       } finally {
         setLoading(false)
       }
     }
     loadEvents()
-  }, [key, isReady])
+  }, [key, isReady, t])
 
   if (!isReady || loading) {
-    return <LoadingScreen message="Loading memories..." />
+    return <LoadingScreen message={t('timeline.loadingMemories')} />
   }
 
   if (error) {
@@ -194,12 +198,12 @@ export function TimelineScreen() {
         title=""
         secondary={
           multiSelectMode
-            ? { label: 'Done', onClick: clearSelection }
-            : { label: 'Logout', onClick: handleLogout }
+            ? { label: t('common.done'), onClick: clearSelection }
+            : { label: t('common.logout'), onClick: handleLogout }
         }
         primary={
           completedCount >= 2 && !multiSelectMode
-            ? { label: 'Select', onClick: enterSelectionMode }
+            ? { label: t('common.select'), onClick: enterSelectionMode }
             : undefined
         }
         tertiaryLeft={
@@ -221,8 +225,8 @@ export function TimelineScreen() {
                 <button
                   onClick={() => navigate('/dashboard')}
                   className="px-3 py-2 text-base min-h-10 text-gray-600 hover:text-gray-800"
-                  title="Dashboard"
-                  aria-label="Admin Dashboard"
+                  title={t('timeline.adminDashboard')}
+                  aria-label={t('timeline.adminDashboard')}
                 >
                   📊
                 </button>
@@ -239,14 +243,14 @@ export function TimelineScreen() {
             disabled={generating}
             className="w-full mb-4 py-4 min-h-14 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-medium disabled:opacity-50"
           >
-            {generating ? 'Combining...' : `Combine ${selectedIds.size} Stories`}
+            {generating ? t('timeline.combining') : t('timeline.combineButton', { count: selectedIds.size })}
           </button>
         )}
 
         {events.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-600 mb-4">
-              No memories yet. Start recording your life story!
+              {t('timeline.emptyTitle')}
             </p>
             <button
               type="button"
@@ -254,7 +258,7 @@ export function TimelineScreen() {
               disabled={loading || generating}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
             >
-              Record Your First Memory
+              {t('timeline.recordFirst')}
             </button>
           </div>
         ) : (
@@ -279,7 +283,7 @@ export function TimelineScreen() {
               type="button"
               onClick={() => navigate('/record')}
               className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
-              aria-label="Add new memory"
+              aria-label={t('timeline.addMemory')}
             >
               <svg
                 className="w-8 h-8 text-white"
@@ -300,10 +304,10 @@ export function TimelineScreen() {
               open={showLogoutDialog}
               onClose={() => setShowLogoutDialog(false)}
               onConfirm={handleConfirmLogout}
-              title="Sign Out"
-              message="Are you sure you want to sign out?"
-              confirmLabel="Sign Out"
-              cancelLabel="Cancel"
+          title={t('timeline.logoutConfirmTitle')}
+          message={t('timeline.logoutConfirmMessage')}
+          confirmLabel={t('common.signOut')}
+          cancelLabel={t('common.cancel')}
               destructive
               loading={logoutLoading}
             />
