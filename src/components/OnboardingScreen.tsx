@@ -7,25 +7,8 @@ import { TopBar } from './TopBar'
 
 const COUNTRIES = [
   'Poland',
-  'United States',
   'United Kingdom',
-  'Germany',
-  'France',
-  'Spain',
-  'Italy',
-  'Canada',
-  'Australia',
-  'Brazil',
-  'Mexico',
-  'Argentina',
-  'Ukraine',
-  'Russia',
-  'Czech Republic',
-  'Slovakia',
-  'Hungary',
-  'Romania',
-  'Netherlands',
-  'Sweden',
+  'United States',
 ]
 
 export function OnboardingScreen() {
@@ -116,7 +99,7 @@ export function OnboardingScreen() {
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
                 {t('onboarding.nameQuestion')}
               </h2>
-              <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
+              <form noValidate onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
                   type="text"
                   name="name"
@@ -142,7 +125,7 @@ export function OnboardingScreen() {
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
                 {t('onboarding.birthDateQuestion')}
               </h2>
-              <form onSubmit={(e) => { e.preventDefault(); handleNext() }}>
+              <form noValidate onSubmit={(e) => { e.preventDefault(); handleNext() }}>
                 <input
                   type="date"
                   name="birthDate"
@@ -172,7 +155,7 @@ export function OnboardingScreen() {
           )}
 
           {step === 3 && (
-            <form onSubmit={handleSubmit}>
+            <form noValidate onSubmit={handleSubmit}>
               <h2 className="text-xl font-semibold text-gray-900 mb-4 text-lg">
                 {t('onboarding.countryQuestion')}
               </h2>

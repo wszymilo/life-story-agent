@@ -288,9 +288,7 @@ This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned impro
 |----------|---------|
 | [`docs/system-design.md`](./docs/system-design.md) | Full architecture: data flow, encryption, generator-reviewer pattern, Mermaid diagrams |
 | [`docs/api-spec.md`](./docs/api-spec.md) | Complete backend API specification: endpoints, schemas, auth, errors, rate limits |
-| [`docs/project-context1.md`](./docs/project-context1.md) | Original requirements, user stories, and core concept |
-| [`docs/langfuse-plan.md`](./docs/langfuse-plan.md) | LangFuse observability implementation plan |
-| [`AGENTS.md`](./AGENTS.md) | Developer guide: conventions, commands, testing requirements |
+
 
 ---
 
