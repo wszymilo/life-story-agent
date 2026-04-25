@@ -1,19 +1,16 @@
-"""LangFuse LLM tracing configuration: trace creation, scoring, and decorator re-export.
+"""LangFuse LLM tracing configuration.
 
 Compatible with LangFuse Python SDK v4.x (OpenTelemetry-based).
+Uses propagate_attributes() + @observe() for trace creation and nesting.
 """
 
-from datetime import datetime, timezone
 from typing import Any
 
 from langfuse import Langfuse
-from langfuse.api.ingestion.types import IngestionEvent_TraceCreate, TraceBody
 
 __all__ = [
     "init_langfuse",
     "get_langfuse",
-    "start_trace",
-    "update_trace",
     "log_score",
     "report_generation_usage",
 ]
@@ -49,77 +46,17 @@ def get_langfuse() -> Langfuse | None:
     return _langfuse_client
 
 
-def start_trace(
-    name: str,
-    user_id: str | None = None,
-    session_id: str | None = None,
-    metadata: dict | None = None,
-) -> str | None:
-    """Create a new LangFuse trace via legacy ingestion API and return its ID.
-
-    The v4 SDK is OpenTelemetry-based and no longer has client.trace().
-    We use the legacy ingestion endpoint to create the trace skeleton with
-    user_id and session_id, then attach observations via @observe(langfuse_trace_id=...).
-
-    Returns the trace_id or None if LangFuse is not configured.
-    """
-    if not _langfuse_client:
-        return None
-
-    try:
-        trace_id = _langfuse_client.create_trace_id()
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-        event = IngestionEvent_TraceCreate(
-            id=_langfuse_client.create_trace_id(),
-            timestamp=timestamp,
-            body=TraceBody(
-                id=trace_id,
-                timestamp=timestamp,
-                name=name,
-                user_id=user_id,
-                session_id=session_id,
-                metadata=metadata,
-            ),
-        )
-
-        _langfuse_client.api.ingestion.batch(batch=[event])
-        logger.debug("langfuse_trace_started", trace_id=trace_id, name=name, user_id=user_id, session_id=session_id)
-        return trace_id
-    except Exception as e:
-        logger.warning("langfuse_trace_failed", error=str(e))
-        return None
-
-
-def update_trace(
-    trace_id: str,
-    metadata: dict | None = None,
-    status: str | None = None,
-) -> None:
-    """Update trace metadata (e.g., on session completion).
-
-    NOTE: LangFuse v4 SDK (OpenTelemetry-based) does not support trace updates
-    via the legacy ingestion API. This function is now a no-op for backward
-    compatibility. Trace metadata should be set at creation time via start_trace().
-    """
-    if not _langfuse_client:
-        return
-
-    logger.debug(
-        "langfuse_trace_update_skipped_v4",
-        trace_id=trace_id,
-        status=status,
-        metadata=metadata,
-    )
-
-
 def log_score(
     trace_id: str,
     name: str,
     value: float,
     comment: str | None = None,
 ) -> None:
-    """Attach an evaluation score to a LangFuse trace."""
+    """Attach an evaluation score to a LangFuse trace.
+
+    Used by background tasks that run outside the @observe() context.
+    For synchronous scoring inside @observe(), use score_current_trace().
+    """
     if not _langfuse_client:
         return
 

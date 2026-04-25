@@ -3,11 +3,11 @@ from typing import Optional
 
 from api.deps import CurrentUser, get_current_user
 from api.langfuse_config import (
+    get_langfuse,
     log_score,
-    start_trace,
-    update_trace,
 )
 from api.logging_config import get_logger
+from langfuse import propagate_attributes
 from api.schemas.event import (
     AudioRecordingResponse,
     CompleteEventRequest,
@@ -69,14 +69,6 @@ async def create_event(
     """Create a new event."""
     supabase = await get_supabase_client()
 
-    # Start a LangFuse trace for this story session
-    trace_id = start_trace(
-        name="story_session",
-        user_id=str(current_user.id),
-        session_id=str(current_user.id),
-        metadata={"event_title": event.title, "operation": "create_event"},
-    )
-
     event_data = {
         "user_id": str(current_user.id),
         "title": event.title,
@@ -86,7 +78,6 @@ async def create_event(
         else None,
         "place": event.place,
         "status": "draft",
-        "trace_id": trace_id,
     }
 
     response = supabase.table("events").insert(event_data).execute()
@@ -277,24 +268,19 @@ async def add_recording(
 
     supabase = await get_supabase_client()
 
-    # Get trace_id from event for LangFuse tracing
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", str(event_id))
-        .execute()
-    )
-    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
-
-    result = await add_recording_to_event(
-        supabase=supabase,
-        event_id=str(event_id),
+    with propagate_attributes(
         user_id=str(current_user.id),
-        file=file,
-        recording_type=recording_type,
-        duration_seconds=duration_seconds,
-        langfuse_trace_id=trace_id,
-    )
+        session_id=str(current_user.id),
+        trace_name="story_session",
+    ):
+        result = await add_recording_to_event(
+            supabase=supabase,
+            event_id=str(event_id),
+            user_id=str(current_user.id),
+            file=file,
+            recording_type=recording_type,
+            duration_seconds=duration_seconds,
+        )
     return result
 
 
@@ -337,20 +323,16 @@ async def retry_transcribe(
             detail="Recording has no audio file",
         )
 
-    # Get trace_id from the event
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", recording["event_id"])
-        .execute()
-    )
-    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
-
     # Get user's preferred language for transcription
     user_language = await get_user_language(supabase, str(current_user.id))
 
     try:
-        transcript = await transcribe_audio_url(recording["audio_url"], language=user_language, langfuse_trace_id=trace_id)
+        with propagate_attributes(
+            user_id=str(current_user.id),
+            session_id=str(current_user.id),
+            trace_name="story_session",
+        ):
+            transcript = await transcribe_audio_url(recording["audio_url"], language=user_language)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -420,35 +402,19 @@ async def complete_event(
     """
     supabase = await get_supabase_client()
 
-    # Get trace_id from event
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", str(event_id))
-        .execute()
-    )
-    trace_id = event_response.data[0].get("trace_id") if event_response.data else None
-
-    result = await complete_event_session(
-        supabase=supabase,
-        event_id=str(event_id),
+    with propagate_attributes(
         user_id=str(current_user.id),
-        transcripts=body.transcripts,
-        questions_and_answers=body.questions_and_answers,
-        langfuse_trace_id=trace_id,
-    )
-
-    # Update trace with completion metadata
-    if trace_id:
-        update_trace(
-            trace_id=trace_id,
-            metadata={
-                "status": "complete",
-                "title": result.get("title"),
-                "summary_length": len(result.get("summary", "")),
-            },
-            status="complete",
+        session_id=str(current_user.id),
+        trace_name="story_session",
+    ):
+        result = await complete_event_session(
+            supabase=supabase,
+            event_id=str(event_id),
+            user_id=str(current_user.id),
+            transcripts=body.transcripts,
+            questions_and_answers=body.questions_and_answers,
         )
+        trace_id = get_langfuse().get_current_trace_id() if get_langfuse() else None
 
     # Trigger evaluation during plaintext phase
     eval_payload = result.pop("_eval_payload", None)
@@ -492,68 +458,53 @@ async def generate_meta_story_endpoint(
             detail=f"Maximum {settings.max_meta_story_select} sources allowed",
         )
 
-    # Start a new LangFuse trace for meta-story generation
-    trace_id = start_trace(
-        name="meta_story",
-        user_id=str(current_user.id),
-        session_id=str(current_user.id),
-        metadata={"source_count": len(req.sources), "operation": "meta_generate"},
-    )
-
     supabase = await get_supabase_client()
     user_language = await get_user_language(supabase, str(current_user.id))
 
-    try:
-        result = await generate_meta_story(
-            sources=req.sources,
-            language=user_language,
-            langfuse_trace_id=trace_id,
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate meta-story: {str(e)}",
-        )
+    with propagate_attributes(
+        user_id=str(current_user.id),
+        session_id=str(current_user.id),
+        trace_name="meta_story",
+    ):
+        try:
+            result = await generate_meta_story(
+                sources=req.sources,
+                language=user_language,
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate meta-story: {str(e)}",
+            )
 
-    # Update trace with completion metadata
-    if trace_id:
-        update_trace(
-            trace_id=trace_id,
-            metadata={
-                "status": "complete",
-                "title": result.get("title"),
-                "summary_length": len(result.get("summary", "")),
-            },
-            status="complete",
-        )
-
-    # Run evaluation synchronously when sampled (plaintext available here)
-    eval_scores = None
-    from services.evaluation import evaluate_output, should_evaluate
-    if should_evaluate():
-        prompt_text = "\n\n".join(
-            f"{s.get('title', '')}\n{s.get('summary', '')}\n" + "\n".join(s.get('transcripts', []))
-            for s in req.sources
-        )
-        eval_result = await evaluate_output(prompt_text, result["summary"], "meta_story")
-        if eval_result:
-            eval_scores = {
-                "factual_accuracy": eval_result.factual_accuracy,
-                "coherence": eval_result.coherence,
-                "completeness": eval_result.completeness,
-                "overall_score": eval_result.overall_score,
-            }
-            # Log eval scores to LangFuse trace
-            if trace_id:
-                log_score(trace_id, "factual_accuracy", eval_result.factual_accuracy or 0, "eval_type=meta_story")
-                log_score(trace_id, "coherence", eval_result.coherence or 0, "eval_type=meta_story")
-                log_score(trace_id, "completeness", eval_result.completeness or 0, "eval_type=meta_story")
-                log_score(trace_id, "overall_score", eval_result.overall_score or 0, "eval_type=meta_story")
+        # Run evaluation synchronously when sampled (plaintext available here)
+        eval_scores = None
+        from services.evaluation import evaluate_output, should_evaluate
+        if should_evaluate():
+            prompt_text = "\n\n".join(
+                f"{s.get('title', '')}\n{s.get('summary', '')}\n" + "\n".join(s.get('transcripts', []))
+                for s in req.sources
+            )
+            eval_result = await evaluate_output(prompt_text, result["summary"], "meta_story")
+            if eval_result:
+                eval_scores = {
+                    "factual_accuracy": eval_result.factual_accuracy,
+                    "coherence": eval_result.coherence,
+                    "completeness": eval_result.completeness,
+                    "overall_score": eval_result.overall_score,
+                }
+                # Log eval scores to LangFuse trace
+                trace_id = get_langfuse().get_current_trace_id() if get_langfuse() else None
+                if trace_id:
+                    log_score(trace_id, "factual_accuracy", eval_result.factual_accuracy or 0, "eval_type=meta_story")
+                    log_score(trace_id, "coherence", eval_result.coherence or 0, "eval_type=meta_story")
+                    log_score(trace_id, "completeness", eval_result.completeness or 0, "eval_type=meta_story")
+                    log_score(trace_id, "overall_score", eval_result.overall_score or 0, "eval_type=meta_story")
 
     response = {
         "title": result["title"],

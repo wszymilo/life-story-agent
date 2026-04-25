@@ -35,47 +35,6 @@ def test_init_langfuse_with_keys():
             assert result == mock_instance
 
 
-def test_start_trace_without_client():
-    """Test start_trace returns None when no client."""
-    with patch("api.langfuse_config._langfuse_client", None):
-        from api.langfuse_config import start_trace
-
-        result = start_trace("story_session", user_id="user123")
-        assert result is None
-
-
-def test_start_trace_with_client():
-    """Test start_trace creates a trace via legacy ingestion API."""
-    mock_client = MagicMock()
-    mock_client.create_trace_id.side_effect = [
-        "trace-abc-123",
-        "event-id-456",
-    ]
-    mock_client.api.ingestion.batch.return_value = MagicMock(
-        successes=[MagicMock(status=201)], errors=[]
-    )
-
-    with patch("api.langfuse_config._langfuse_client", mock_client):
-        from api.langfuse_config import start_trace
-
-        result = start_trace(
-            "story_session",
-            user_id="user123",
-            session_id="session456",
-            metadata={"foo": "bar"},
-        )
-        assert result == "trace-abc-123"
-        mock_client.create_trace_id.assert_called()
-        mock_client.api.ingestion.batch.assert_called_once()
-        call_args = mock_client.api.ingestion.batch.call_args
-        batch = call_args.kwargs["batch"]
-        assert len(batch) == 1
-        assert batch[0].body.id == "trace-abc-123"
-        assert batch[0].body.name == "story_session"
-        assert batch[0].body.user_id == "user123"
-        assert batch[0].body.session_id == "session456"
-
-
 def test_log_score():
     """Test log_score attaches a score to a trace via create_score."""
     mock_client = MagicMock()
@@ -92,13 +51,44 @@ def test_log_score():
         )
 
 
-def test_update_trace_is_noop_in_v4():
-    """Test update_trace is a no-op in LangFuse v4 SDK."""
+def test_report_generation_usage_with_usage():
+    """Test report_generation_usage calls update_current_generation with usage."""
     mock_client = MagicMock()
 
     with patch("api.langfuse_config._langfuse_client", mock_client):
-        from api.langfuse_config import update_trace
+        from api.langfuse_config import report_generation_usage
 
-        update_trace("trace-123", metadata={"status": "complete"}, status="complete")
-        # In v4, trace update is not supported via legacy API; should be a no-op
-        mock_client.api.ingestion.batch.assert_not_called()
+        report_generation_usage(
+            "gpt-4o-mini",
+            usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        )
+        mock_client.update_current_generation.assert_called_once()
+        call_kwargs = mock_client.update_current_generation.call_args.kwargs
+        assert call_kwargs["model"] == "gpt-4o-mini"
+        assert call_kwargs["usage_details"] == {
+            "input": 100,
+            "output": 50,
+            "total": 150,
+        }
+
+
+def test_report_generation_usage_without_usage():
+    """Test report_generation_usage calls update_current_generation with model only."""
+    mock_client = MagicMock()
+
+    with patch("api.langfuse_config._langfuse_client", mock_client):
+        from api.langfuse_config import report_generation_usage
+
+        report_generation_usage("whisper-1", usage=None)
+        mock_client.update_current_generation.assert_called_once_with(
+            model="whisper-1",
+        )
+
+
+def test_report_generation_usage_without_client():
+    """Test report_generation_usage returns early when no client."""
+    with patch("api.langfuse_config._langfuse_client", None):
+        from api.langfuse_config import report_generation_usage
+
+        report_generation_usage("gpt-4o-mini", usage={"prompt_tokens": 10})
+        # Should not raise

@@ -31,7 +31,6 @@ async def generate_summary(
     transcripts: list[str],
     questions_and_answers: list[dict[str, Any]],
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> SummaryWithTitle:
     """Generate a grounded summary using Generator-Reviewer pattern.
 
@@ -39,7 +38,6 @@ async def generate_summary(
         transcripts: List of transcript strings from recordings
         questions_and_answers: List of dicts with 'question' and 'answer' keys
         language: Language code (default: pl)
-        langfuse_trace_id: LangFuse trace ID for observability
 
     Returns:
         SummaryWithTitle with summary, title, and retry flag

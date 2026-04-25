@@ -30,14 +30,12 @@ def _extract_usage(response) -> dict | None:
 async def generate_meta_story(
     sources: list[dict],
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> dict:
     """Generate a meta-story from multiple event sources.
 
     Args:
         sources: List of source dicts with title, summary, date, transcripts
         language: Language code (default: pl)
-        langfuse_trace_id: LangFuse trace ID for observability
 
     Returns:
         Dict with title, summary
