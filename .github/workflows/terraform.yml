@@ -43,7 +43,7 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          terraform init \
+          cd terraform && terraform init \
             -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
             -backend-config="key=production/terraform.tfstate" \
             -backend-config="region=eu-west-1" \
@@ -54,60 +54,68 @@ jobs:
         if: inputs.action == 'plan' || inputs.action == 'apply'
         id: fmt
         run: |
-          terraform fmt -check -recursive || true
+          cd terraform && terraform fmt -check -recursive || true
 
       - name: Terraform Validate
         if: inputs.action == 'plan' || inputs.action == 'apply'
         id: validate
         run: |
-          terraform validate
+          cd terraform && terraform validate
 
       - name: Terraform Plan
         if: inputs.action == 'plan' || inputs.action == 'apply'
         id: plan
         run: |
-          terraform plan -no-color
+          cd terraform && terraform plan -no-color
 
       - name: Terraform Apply
         if: inputs.action == 'apply'
         id: apply
         run: |
-          terraform apply -auto-approve
+          cd terraform && terraform apply -auto-approve
 
       - name: Terraform Destroy
         if: inputs.action == 'destroy'
         id: destroy
         run: |
-          terraform destroy -auto-approve
+          cd terraform && terraform destroy -auto-approve
 
       - name: Get Terraform Outputs
         if: inputs.action == 'apply'
         id: outputs
         run: |
-          echo "api_url=$(terraform output -raw api_url)" >> $GITHUB_OUTPUT
-          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> $GITHUB_OUTPUT
-          echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
-          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
-          echo "audio_bucket_name=$(terraform output -raw audio_bucket_name)" >> $GITHUB_OUTPUT
-          echo "aurora_endpoint=$(terraform output -raw aurora_endpoint)" >> $GITHUB_OUTPUT
-          echo "db_credentials_arn=$(terraform output -raw db_credentials_arn)" >> $GITHUB_OUTPUT
-          echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
-          echo "ssm_parameter_path=$(terraform output -raw ssm_parameter_path)" >> $GITHUB_OUTPUT
+          echo "api_url=$(cd terraform && terraform output -raw api_url)" >> $GITHUB_OUTPUT
+          echo "cloudfront_url=$(cd terraform && terraform output -raw cloudfront_url)" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=$(cd terraform && terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=$(cd terraform && terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
+          echo "audio_bucket_name=$(cd terraform && terraform output -raw audio_bucket_name)" >> $GITHUB_OUTPUT
+          echo "aurora_endpoint=$(cd terraform && terraform output -raw aurora_endpoint)" >> $GITHUB_OUTPUT
+          echo "db_credentials_arn=$(cd terraform && terraform output -raw db_credentials_arn)" >> $GITHUB_OUTPUT
+          echo "ecr_repository_url=$(cd terraform && terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+          echo "ssm_parameter_path=$(cd terraform && terraform output -raw ssm_parameter_path)" >> $GITHUB_OUTPUT
+          echo "ecs_cluster_name=$(cd terraform && terraform output -raw ecs_cluster_name)" >> $GITHUB_OUTPUT
+          echo "ecs_service_name=$(cd terraform && terraform output -raw ecs_service_name)" >> $GITHUB_OUTPUT
+          echo "frontend_bucket_name=$(cd terraform && terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
+          echo "cf_distribution_id=$(cd terraform && terraform output -raw cf_distribution_id)" >> $GITHUB_OUTPUT
 
       - name: Set GitHub Variables
         if: inputs.action == 'apply'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh variable set FRONTEND_API_URL --body "$(terraform output -raw api_url)"
-          gh variable set CLOUDFRONT_URL --body "$(terraform output -raw cloudfront_url)"
-          gh variable set COGNITO_USER_POOL_ID --body "$(terraform output -raw cognito_user_pool_id)"
-          gh variable set COGNITO_CLIENT_ID --body "$(terraform output -raw cognito_client_id)"
-          gh variable set AUDIO_BUCKET --body "$(terraform output -raw audio_bucket_name)"
-          gh variable set AURORA_ENDPOINT --body "$(terraform output -raw aurora_endpoint)"
-          gh variable set DB_CREDENTIALS_ARN --body "$(terraform output -raw db_credentials_arn)"
-          gh variable set ECR_REPOSITORY_URL --body "$(terraform output -raw ecr_repository_url)"
-          gh variable set SSM_PARAMETER_PATH --body "$(terraform output -raw ssm_parameter_path)"
+          gh variable set FRONTEND_API_URL --body "$(cd terraform && terraform output -raw api_url)"
+          gh variable set CLOUDFRONT_URL --body "$(cd terraform && terraform output -raw cloudfront_url)"
+          gh variable set COGNITO_USER_POOL_ID --body "$(cd terraform && terraform output -raw cognito_user_pool_id)"
+          gh variable set COGNITO_CLIENT_ID --body "$(cd terraform && terraform output -raw cognito_client_id)"
+          gh variable set AUDIO_BUCKET --body "$(cd terraform && terraform output -raw audio_bucket_name)"
+          gh variable set AURORA_ENDPOINT --body "$(cd terraform && terraform output -raw aurora_endpoint)"
+          gh variable set DB_CREDENTIALS_ARN --body "$(cd terraform && terraform output -raw db_credentials_arn)"
+          gh variable set ECR_REPOSITORY_URL --body "$(cd terraform && terraform output -raw ecr_repository_url)"
+          gh variable set SSM_PARAMETER_PATH --body "$(cd terraform && terraform output -raw ssm_parameter_path)"
+          gh variable set ECS_CLUSTER_NAME --body "$(cd terraform && terraform output -raw ecs_cluster_name)"
+          gh variable set ECS_SERVICE_NAME --body "$(cd terraform && terraform output -raw ecs_service_name)"
+          gh variable set FRONTEND_BUCKET --body "$(cd terraform && terraform output -raw frontend_bucket_name)"
+          gh variable set CF_DISTRIBUTION_ID --body "$(cd terraform && terraform output -raw cf_distribution_id)"
 
       - name: Clear GitHub Variables
         if: inputs.action == 'destroy'
@@ -123,6 +131,8 @@ jobs:
           gh variable delete DB_CREDENTIALS_ARN --silent || true
           gh variable delete ECR_REPOSITORY_URL --silent || true
           gh variable delete SSM_PARAMETER_PATH --silent || true
+          gh variable delete ECS_CLUSTER_NAME --silent || true
+          gh variable delete ECS_SERVICE_NAME --silent || true
           gh variable delete FRONTEND_BUCKET --silent || true
           gh variable delete CF_DISTRIBUTION_ID --silent || true
           echo "GitHub Variables cleared"

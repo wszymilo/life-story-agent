@@ -37,7 +37,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.eu-west-1.amazonaws.com/${{ vars.PROJECT_NAME }}/fastapi
+          images: ${{ vars.ECR_REPOSITORY_URL }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=,suffix=,format=short
@@ -57,24 +57,19 @@ jobs:
       - name: Deploy to ECS
         run: |
           aws ecs update-service \
-            --cluster ${{ vars.PROJECT_NAME }}-cluster \
-            --service ${{ vars.PROJECT_NAME }}-fastapi-service \
+            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
+            --service ${{ vars.ECS_SERVICE_NAME }} \
             --force-new-deployment \
             --region eu-west-1
 
       - name: Wait for deployment
         run: |
           aws ecs wait services-stable \
-            --cluster ${{ vars.PROJECT_NAME }}-cluster \
-            --services ${{ vars.PROJECT_NAME }}-fastapi-service \
+            --cluster ${{ vars.ECS_CLUSTER_NAME }} \
+            --services ${{ vars.ECS_SERVICE_NAME }} \
             --region eu-west-1
 
       - name: Health check
         run: |
-          BACKEND_URL=$(aws cloudformation describe-stacks \
-            --stack-name ${{ vars.PROJECT_NAME }}-alb \
-            --region eu-west-1 \
-            --query 'Stacks[0].Outputs[?OutputKey=="LoadBalancerDNSName"].OutputValue' \
-            --output text)
-          echo "Backend URL: http://$BACKEND_URL"
-          curl --retry 5 --retry-delay 10 --fail http://$BACKEND_URL/health
+          echo "Backend URL: ${{ vars.FRONTEND_API_URL }}"
+          curl --retry 5 --retry-delay 10 --fail ${{ vars.FRONTEND_API_URL }}/health
