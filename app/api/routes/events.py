@@ -281,6 +281,12 @@ async def add_recording(
             recording_type=recording_type,
             duration_seconds=duration_seconds,
         )
+        langfuse_client = get_langfuse()
+        trace_id = langfuse_client.get_current_trace_id() if langfuse_client else None
+
+    if trace_id:
+        await supabase.table("events").update({"trace_id": trace_id}).eq("id", str(event_id)).execute()
+
     return result
 
 
@@ -326,13 +332,23 @@ async def retry_transcribe(
     # Get user's preferred language for transcription
     user_language = await get_user_language(supabase, str(current_user.id))
 
+    # Fetch trace_id from the parent event
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", recording["event_id"])
+        .execute()
+    )
+    trace_id = None
+    if event_response.data:
+        trace_id = event_response.data[0].get("trace_id")
+
     try:
-        with propagate_attributes(
-            user_id=str(current_user.id),
-            session_id=str(current_user.id),
-            trace_name="story_session",
-        ):
-            transcript = await transcribe_audio_url(recording["audio_url"], language=user_language)
+        transcript = await transcribe_audio_url(
+            recording["audio_url"],
+            language=user_language,
+            langfuse_trace_id=trace_id,
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -402,19 +418,25 @@ async def complete_event(
     """
     supabase = await get_supabase_client()
 
-    with propagate_attributes(
+    # Fetch existing trace_id for this story session
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", str(event_id))
+        .execute()
+    )
+    trace_id = None
+    if event_response.data:
+        trace_id = event_response.data[0].get("trace_id")
+
+    result = await complete_event_session(
+        supabase=supabase,
+        event_id=str(event_id),
         user_id=str(current_user.id),
-        session_id=str(current_user.id),
-        trace_name="story_session",
-    ):
-        result = await complete_event_session(
-            supabase=supabase,
-            event_id=str(event_id),
-            user_id=str(current_user.id),
-            transcripts=body.transcripts,
-            questions_and_answers=body.questions_and_answers,
-        )
-        trace_id = get_langfuse().get_current_trace_id() if get_langfuse() else None
+        transcripts=body.transcripts,
+        questions_and_answers=body.questions_and_answers,
+        langfuse_trace_id=trace_id,
+    )
 
     # Trigger evaluation during plaintext phase
     eval_payload = result.pop("_eval_payload", None)

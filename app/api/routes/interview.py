@@ -1,10 +1,8 @@
 import uuid
 
 from api.deps import CurrentUser, get_current_user
-from api.langfuse_config import get_langfuse
 from api.logging_config import get_logger
 from api.rate_limit_config import limiter
-from langfuse import propagate_attributes
 from api.schemas.event import AnalyzeRequest, FollowUpRequest, QuestionCreateRequest
 from api.utils import (
     get_event_for_user,
@@ -49,13 +47,23 @@ async def analyze_event_transcript(
     # Get user's preferred language
     user_language = await get_user_language(supabase, user_id_str)
 
+    # Fetch existing trace_id for this story session
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", event_id_str)
+        .execute()
+    )
+    trace_id = None
+    if event_response.data:
+        trace_id = event_response.data[0].get("trace_id")
+
     try:
-        with propagate_attributes(
-            user_id=user_id_str,
-            session_id=user_id_str,
-            trace_name="story_session",
-        ):
-            analysis = await analyze_transcript(body.transcript, language=user_language)
+        analysis = await analyze_transcript(
+            body.transcript,
+            language=user_language,
+            langfuse_trace_id=trace_id,
+        )
     except Exception as e:
         logger.error("analyze_transcript_failed", event_id=event_id_str, error=str(e))
         raise HTTPException(
@@ -120,18 +128,24 @@ async def generate_follow_up(
     # Get user's preferred language
     user_language = await get_user_language(supabase, user_id_str)
 
+    # Fetch existing trace_id for this story session
+    event_response = (
+        supabase.table("events")
+        .select("trace_id")
+        .eq("id", event_id_str)
+        .execute()
+    )
+    trace_id = None
+    if event_response.data:
+        trace_id = event_response.data[0].get("trace_id")
+
     try:
-        with propagate_attributes(
-            user_id=user_id_str,
-            session_id=user_id_str,
-            trace_name="story_session",
-        ):
-            question = await generate_follow_up_question(
-                transcript=body.transcript,
-                existing_questions=body.existing_questions,
-                language=user_language,
-            )
-            trace_id = get_langfuse().get_current_trace_id() if get_langfuse() else None
+        question = await generate_follow_up_question(
+            transcript=body.transcript,
+            existing_questions=body.existing_questions,
+            language=user_language,
+            langfuse_trace_id=trace_id,
+        )
     except Exception as e:
         logger.error("generate_follow_up_failed", event_id=event_id_str, error=str(e))
         raise HTTPException(

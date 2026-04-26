@@ -25,6 +25,7 @@ async def generate_speech(
     voice: str = "nova",
     model: str = settings.tts_model,
     response_format: str = "mp3",
+    langfuse_trace_id: str | None = None,
 ) -> tuple[bytes, str]:
     """Generate speech from text using OpenAI TTS API.
 

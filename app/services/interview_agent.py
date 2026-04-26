@@ -44,6 +44,7 @@ def _extract_usage(response) -> dict | None:
 async def analyze_transcript(
     transcript: str,
     language: str = "pl",
+    langfuse_trace_id: str | None = None,
 ) -> TranscriptAnalysis:
     """Analyze a transcript to extract time, place, people, and themes.
 
@@ -127,6 +128,7 @@ async def generate_follow_up_question(
     transcript: str,
     existing_questions: list[str],
     language: str = "pl",
+    langfuse_trace_id: str | None = None,
 ) -> FollowUpQuestion:
     """Generate a contextual follow-up question based on the transcript.
 

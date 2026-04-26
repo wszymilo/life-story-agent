@@ -17,6 +17,7 @@ async def complete_event_session(
     user_id: str,
     transcripts: list[str],
     questions_and_answers: list[dict[str, str]],
+    langfuse_trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Complete an event session: generate summary from plaintext, return result.
 
@@ -45,6 +46,7 @@ async def complete_event_session(
             transcripts=transcripts,
             questions_and_answers=questions_and_answers,
             language=user_language,
+            langfuse_trace_id=langfuse_trace_id,
         )
     except Exception as e:
         raise HTTPException(
