@@ -440,7 +440,8 @@ resource "aws_iam_role_policy" "ecs_secrets" {
       Effect = "Allow"
       Action = [
         "secretsmanager:GetSecretValue",
-        "ssm:GetParameter"
+        "ssm:GetParameter",
+        "ssm:GetParameters"
       ]
       Resource = [
         aws_secretsmanager_secret.db_credentials.arn,

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Header, HTTPException, Request, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
