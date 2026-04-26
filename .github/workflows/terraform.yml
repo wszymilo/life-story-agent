@@ -74,11 +74,61 @@ jobs:
         run: |
           cd terraform && terraform apply -auto-approve
 
+      - name: Aurora DB Backup
+        if: inputs.action == 'destroy'
+        run: |
+          set +e  # Continue even if backup fails
+          echo "=== Aurora DB Backup ==="
+          DB_PASS=$(aws secretsmanager get-secret-value \
+            --secret-id '${{ vars.DB_CREDENTIALS_ARN }}' \
+            --query 'SecretString' \
+            --output text)
+          DUMP_FILE="/tmp/aurora-backup-$(date +%Y%m%d-%H%M%S).sql"
+          TIMEOUT_CMD="timeout 30"  # 30 second timeout for Aurora wake-up
+
+          $TIMEOUT_CMD docker run --rm \
+            -e PGPASSWORD="$DB_PASS" \
+            -v /tmp:/tmp \
+            postgres:16-alpine \
+            pg_dump -h '${{ vars.AURORA_ENDPOINT }}' \
+              -U dbadmin \
+              -d life_story_agent \
+              --no-owner --no-acl \
+              -f "$DUMP_FILE" 2>/dev/null
+          DUMP_EXIT=$?
+
+          if [ $DUMP_EXIT -eq 0 ]; then
+            if [ -s "$DUMP_FILE" ]; then
+              aws s3 cp "$DUMP_FILE" s3://${{ vars.DB_STORAGE_BUCKET }}/backups/aurora-$(date +%Y%m%d-%H%M%S).sql
+              echo "✓ Aurora DB backup saved to s3://${{ vars.DB_STORAGE_BUCKET }}/backups/"
+              FILE_SIZE=$(stat -f%z "$DUMP_FILE" 2>/dev/null || stat -c%s "$DUMP_FILE" 2>/dev/null)
+              echo "  Backup size: $FILE_SIZE bytes"
+            else
+              echo "✓ Aurora accessible but database is empty (no tables or data)"
+              echo "  Empty dump file created but not uploaded to S3 (no data to preserve)"
+            fi
+            rm -f "$DUMP_FILE"
+          else
+            echo "✗ Aurora DB backup failed (exit code: $DUMP_EXIT)"
+            echo "  Aurora may be paused, unreachable, or credentials invalid"
+            echo "  Proceeding with destroy anyway..."
+            rm -f "$DUMP_FILE" 2>/dev/null
+          fi
+          echo "=== Aurora DB Backup Complete ==="
+
       - name: Terraform Destroy
         if: inputs.action == 'destroy'
         id: destroy
         run: |
           cd terraform && terraform destroy -auto-approve
+
+      - name: Cleanup Secrets Manager
+        if: inputs.action == 'destroy'
+        run: |
+          aws secretsmanager delete-secret \
+            --secret-id life-story-agent/production/db-password \
+            --force-delete-without-recovery \
+            2>/dev/null || true
 
       - name: Get Terraform Outputs
         if: inputs.action == 'apply'
@@ -97,42 +147,61 @@ jobs:
           echo "ecs_service_name=$(cd terraform && terraform output -raw ecs_service_name)" >> $GITHUB_OUTPUT
           echo "frontend_bucket_name=$(cd terraform && terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
           echo "cf_distribution_id=$(cd terraform && terraform output -raw cf_distribution_id)" >> $GITHUB_OUTPUT
+          echo "db_storage_bucket_name=$(cd terraform && terraform output -raw db_storage_bucket_name)" >> $GITHUB_OUTPUT
 
       - name: Set GitHub Variables
         if: inputs.action == 'apply'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: wszymilo/life-story-agent
         run: |
-          gh variable set FRONTEND_API_URL --body "$(cd terraform && terraform output -raw api_url)"
-          gh variable set CLOUDFRONT_URL --body "$(cd terraform && terraform output -raw cloudfront_url)"
-          gh variable set COGNITO_USER_POOL_ID --body "$(cd terraform && terraform output -raw cognito_user_pool_id)"
-          gh variable set COGNITO_CLIENT_ID --body "$(cd terraform && terraform output -raw cognito_client_id)"
-          gh variable set AUDIO_BUCKET --body "$(cd terraform && terraform output -raw audio_bucket_name)"
-          gh variable set AURORA_ENDPOINT --body "$(cd terraform && terraform output -raw aurora_endpoint)"
-          gh variable set DB_CREDENTIALS_ARN --body "$(cd terraform && terraform output -raw db_credentials_arn)"
-          gh variable set ECR_REPOSITORY_URL --body "$(cd terraform && terraform output -raw ecr_repository_url)"
-          gh variable set SSM_PARAMETER_PATH --body "$(cd terraform && terraform output -raw ssm_parameter_path)"
-          gh variable set ECS_CLUSTER_NAME --body "$(cd terraform && terraform output -raw ecs_cluster_name)"
-          gh variable set ECS_SERVICE_NAME --body "$(cd terraform && terraform output -raw ecs_service_name)"
-          gh variable set FRONTEND_BUCKET --body "$(cd terraform && terraform output -raw frontend_bucket_name)"
-          gh variable set CF_DISTRIBUTION_ID --body "$(cd terraform && terraform output -raw cf_distribution_id)"
+          declare -A TF_OUTPUTS=(
+            [FRONTEND_API_URL]=api_url
+            [CLOUDFRONT_URL]=cloudfront_url
+            [COGNITO_USER_POOL_ID]=cognito_user_pool_id
+            [COGNITO_CLIENT_ID]=cognito_client_id
+            [AUDIO_BUCKET]=audio_bucket_name
+            [AURORA_ENDPOINT]=aurora_endpoint
+            [DB_CREDENTIALS_ARN]=db_credentials_arn
+            [ECR_REPOSITORY_URL]=ecr_repository_url
+            [SSM_PARAMETER_PATH]=ssm_parameter_path
+            [ECS_CLUSTER_NAME]=ecs_cluster_name
+            [ECS_SERVICE_NAME]=ecs_service_name
+            [FRONTEND_BUCKET]=frontend_bucket_name
+            [CF_DISTRIBUTION_ID]=cf_distribution_id
+            [DB_STORAGE_BUCKET]=db_storage_bucket_name
+          )
+          for gh_var in "${!TF_OUTPUTS[@]}"; do
+            tf_var="${TF_OUTPUTS[$gh_var]}"
+            value=$(cd terraform && terraform output -raw $tf_var)
+            http_code=$(curl -s -w "%{http_code}" -o /dev/null -X PATCH \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/actions/variables/$gh_var" \
+              -d "{\"name\":\"$gh_var\",\"value\":\"$value\"}")
+            if [ "$http_code" = "404" ]; then
+              curl -s -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$REPO/actions/variables" \
+                -d "{\"name\":\"$gh_var\",\"value\":\"$value\"}"
+            fi
+          done
 
       - name: Clear GitHub Variables
         if: inputs.action == 'destroy'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REPO: wszymilo/life-story-agent
         run: |
-          gh variable delete FRONTEND_API_URL --silent || true
-          gh variable delete CLOUDFRONT_URL --silent || true
-          gh variable delete COGNITO_USER_POOL_ID --silent || true
-          gh variable delete COGNITO_CLIENT_ID --silent || true
-          gh variable delete AUDIO_BUCKET --silent || true
-          gh variable delete AURORA_ENDPOINT --silent || true
-          gh variable delete DB_CREDENTIALS_ARN --silent || true
-          gh variable delete ECR_REPOSITORY_URL --silent || true
-          gh variable delete SSM_PARAMETER_PATH --silent || true
-          gh variable delete ECS_CLUSTER_NAME --silent || true
-          gh variable delete ECS_SERVICE_NAME --silent || true
-          gh variable delete FRONTEND_BUCKET --silent || true
-          gh variable delete CF_DISTRIBUTION_ID --silent || true
+          for var in FRONTEND_API_URL CLOUDFRONT_URL COGNITO_USER_POOL_ID COGNITO_CLIENT_ID AUDIO_BUCKET AURORA_ENDPOINT DB_CREDENTIALS_ARN ECR_REPOSITORY_URL SSM_PARAMETER_PATH ECS_CLUSTER_NAME ECS_SERVICE_NAME FRONTEND_BUCKET CF_DISTRIBUTION_ID DB_STORAGE_BUCKET; do
+            curl -s -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/actions/variables/$var" \
+              || true
+          done
           echo "GitHub Variables cleared"

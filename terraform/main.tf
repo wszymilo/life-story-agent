@@ -171,8 +171,9 @@ resource "aws_rds_cluster" "main" {
 }
 
 resource "random_password" "db_password" {
-  length  = 32
-  special = true
+  length           = 32
+  special          = true
+  override_special = "!#$%^&*()_+=-[]{}|:<>?,.~"
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
@@ -335,6 +336,32 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket" "db_storage" {
+  bucket = "${var.project_name}-db-storage"
+
+  tags = {
+    Name        = "${var.project_name}-db-storage"
+    Purpose     = "db-backups"
+    Environment = var.environment
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "db_storage" {
+  bucket = aws_s3_bucket.db_storage.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "db_storage" {
+  bucket = aws_s3_bucket.db_storage.id
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
@@ -682,6 +709,7 @@ resource "aws_ssm_parameter" "openai_api_key" {
   description = "OpenAI API Key for Life Story Agent"
   type        = "SecureString"
   value       = "REPLACE_WITH_YOUR_OPENAI_KEY"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "cors_origins" {
@@ -743,7 +771,7 @@ output "ecs_cluster_name" {
 
 output "ecs_service_name" {
   description = "ECS service name"
-  value       = aws_ecs_service.main.name
+  value       = aws_ecs_service.fastapi.name
 }
 
 output "frontend_bucket_name" {
@@ -754,4 +782,9 @@ output "frontend_bucket_name" {
 output "cf_distribution_id" {
   description = "CloudFront distribution ID"
   value       = aws_cloudfront_distribution.frontend.id
+}
+
+output "db_storage_bucket_name" {
+  description = "S3 bucket name for DB backups"
+  value       = aws_s3_bucket.db_storage.bucket
 }
