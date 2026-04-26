@@ -14,7 +14,7 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 
 async def add_recording_to_event(
-    supabase: Any,
+    db: Any,
     event_id: str,
     user_id: str,
     file: UploadFile,
@@ -26,7 +26,6 @@ async def add_recording_to_event(
     Returns:
         Recording dict (matches AudioRecordingResponse).
     """
-    # Validate content type
     if not file.content_type or not file.content_type.startswith("audio/"):
         logger.warning("recording_invalid_content_type", content_type=file.content_type)
         raise HTTPException(
@@ -37,7 +36,6 @@ async def add_recording_to_event(
     audio_bytes = await file.read()
     audio_size = len(audio_bytes)
 
-    # Validate file size
     if audio_size > MAX_FILE_SIZE_BYTES:
         logger.warning(
             "recording_file_too_large",
@@ -49,7 +47,6 @@ async def add_recording_to_event(
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB",
         )
 
-    # Upload to storage
     file_path = f"{user_id}/{event_id}/{uuid.uuid4()}.webm"
     storage = StorageService()
 
@@ -65,8 +62,7 @@ async def add_recording_to_event(
             detail=f"Failed to upload audio: {str(e)}",
         )
 
-    # Transcribe
-    user_language = await get_user_language(supabase, user_id)
+    user_language = await get_user_language(db, user_id)
     transcript = None
     transcription_error = None
     try:
@@ -76,8 +72,7 @@ async def add_recording_to_event(
         transcript = None
         transcription_error = str(e)
 
-    # Persist recording (transcript is encrypted by client; store null initially)
-    sequence_order = get_next_sequence_order(supabase, "audio_recordings", event_id)
+    sequence_order = await get_next_sequence_order(db, "audio_recordings", event_id)
     recording_data = {
         "event_id": event_id,
         "audio_url": public_url,
@@ -87,13 +82,12 @@ async def add_recording_to_event(
         "duration_seconds": duration_seconds,
     }
 
-    response = supabase.table("audio_recordings").insert(recording_data).execute()
+    response = db.table("audio_recordings").insert(recording_data).execute()
     require_data(response, "Failed to create recording")
 
-    # Mark follow-up question as answered
     if recording_type == "follow_up_response":
         current_question = (
-            supabase.table("follow_up_questions")
+            db.table("follow_up_questions")
             .select("id")
             .eq("event_id", event_id)
             .is_("audio_url", "null")
@@ -103,7 +97,7 @@ async def add_recording_to_event(
             .execute()
         )
         if current_question.data:
-            supabase.table("follow_up_questions").update(
+            db.table("follow_up_questions").update(
                 {"was_answered": True, "audio_url": public_url}
             ).eq("id", current_question.data[0]["id"]).execute()
 
@@ -127,7 +121,6 @@ async def add_recording_to_event(
         recording_type=recording_type,
     )
 
-    # Return plaintext transcript to client for encryption
     return {
         **response.data[0],
         "transcript": transcript,

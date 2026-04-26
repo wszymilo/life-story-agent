@@ -6,7 +6,7 @@ from api.langfuse_config import log_score
 from api.logging_config import get_logger
 from api.schemas.evaluation import EvaluationScores, QuestionEvaluationScores
 from config import get_settings
-from db.client import get_supabase_client
+from db.query import get_db
 from fastapi import BackgroundTasks
 from openai import AsyncOpenAI
 
@@ -217,10 +217,10 @@ async def _store_scores(
     trace_id: str | None = None,
 ) -> None:
     """Store evaluation scores (no content) and log to LangFuse."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     try:
-        supabase.table("evaluation_results").insert({
+        db.table("evaluation_results").insert({
             "event_id": event_id,
             "eval_type": eval_type,
             "factual_accuracy": result.factual_accuracy,
@@ -247,10 +247,10 @@ async def _store_question_scores(
     trace_id: str | None = None,
 ) -> None:
     """Store question evaluation scores (no content) and log to LangFuse."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     try:
-        supabase.table("evaluation_results").insert({
+        db.table("evaluation_results").insert({
             "event_id": event_id,
             "eval_type": "question",
             "factual_accuracy": result.relevance,

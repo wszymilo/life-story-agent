@@ -12,7 +12,7 @@ logger = get_logger()
 
 
 async def complete_event_session(
-    supabase: Any,
+    db: Any,
     event_id: str,
     user_id: str,
     transcripts: list[str],
@@ -27,18 +27,15 @@ async def complete_event_session(
     Returns:
         Dict with id, title, summary, status (plaintext — client encrypts before storage).
     """
-    # Verify ownership
-    event = await get_event_for_user(supabase, event_id, user_id)
+    event = await get_event_for_user(db, event_id, user_id)
 
-    # Check if already completed
     if event.get("status") == "complete":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Event is already completed",
         )
 
-    # Generate summary from client-provided plaintext
-    user_language = await get_user_language(supabase, user_id)
+    user_language = await get_user_language(db, user_id)
 
     try:
         summary_result = await generate_summary(

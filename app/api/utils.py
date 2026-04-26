@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 
 def require_data(response: Any, detail: str = "Resource not found") -> Any:
-    """Extract first item from Supabase response data.
+    """Extract first item from query result data.
 
     Raises 404 if data is missing, empty, or invalid.
     Raises 500 if response has no .data attribute.
@@ -18,30 +18,23 @@ def require_data(response: Any, detail: str = "Resource not found") -> Any:
 
     data = response.data
 
-    # Handle None, empty list, or non-list data (dict, etc.)
     if not isinstance(data, list) or len(data) == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
     return data[0]
 
 
-# ============================================================================
-# DRY Helper Functions
-# ============================================================================
-
 def serialize_update_data(update_data: dict[str, Any]) -> dict[str, Any]:
     """Serialize date objects in update data to ISO format strings.
 
-    Converts Python date/dateime objects to ISO format strings for Supabase.
+    Converts Python date/dateime objects to ISO format strings for DB.
     Mutates and returns the input dict.
     """
     if not update_data:
         return update_data
 
-    # Add updated_at timestamp
     update_data["updated_at"] = datetime.now(UTC).isoformat()
 
-    # Serialize any date objects
     for key, value in update_data.items():
         if isinstance(value, date):
             update_data[key] = value.isoformat()
@@ -67,7 +60,7 @@ def validate_recordings_exist(recordings_response: Any, error_detail: str = "No 
     Raises HTTPException 400 if no recordings.
 
     Args:
-        recordings_response: Supabase response with .data attribute
+        recordings_response: Query result with .data attribute
         error_detail: Custom error message
 
     Raises:
@@ -80,8 +73,8 @@ def validate_recordings_exist(recordings_response: Any, error_detail: str = "No 
         )
 
 
-def get_next_sequence_order(
-    supabase_client: Any,
+async def get_next_sequence_order(
+    db: Any,
     table_name: str,
     event_id: str,
     id_field: str = "event_id",
@@ -92,7 +85,7 @@ def get_next_sequence_order(
     and returns one more than that (defaults to 1 if no records exist).
 
     Args:
-        supabase_client: Supabase client instance
+        db: Database instance
         table_name: Name of the table (e.g., 'audio_recordings', 'follow_up_questions')
         event_id: The event ID to query
         id_field: The field name for event_id in the table (default: 'event_id')
@@ -101,7 +94,7 @@ def get_next_sequence_order(
         Next sequence order number (int)
     """
     max_order_response = (
-        supabase_client.table(table_name)
+        db.table(table_name)
         .select("sequence_order")
         .eq(id_field, event_id)
         .order("sequence_order", desc=True)
@@ -119,7 +112,7 @@ def get_next_sequence_order(
 
 
 async def get_event_for_user(
-    supabase_client: Any,
+    db: Any,
     event_id: str,
     user_id: str,
 ) -> dict[str, Any]:
@@ -129,7 +122,7 @@ async def get_event_for_user(
     Raises 404 if event doesn't exist or doesn't belong to user.
 
     Args:
-        supabase_client: Supabase client instance
+        db: Database instance
         event_id: UUID of the event
         user_id: UUID of the current user
 
@@ -140,28 +133,28 @@ async def get_event_for_user(
         HTTPException: 404 if event not found or not owned by user
     """
     event_response = (
-        supabase_client.table("events")
+        db.table("events")
         .select("*")
         .eq("id", event_id)
         .eq("user_id", user_id)
         .execute()
     )
 
-    return require_data(event_response, "Event not found")  # type: ignore[return-value]
+    return require_data(event_response, "Event not found")
 
 
-async def get_user_language(supabase_client: Any, user_id: str) -> str:
+async def get_user_language(db: Any, user_id: str) -> str:
     """Get user's preferred language, defaulting to Polish.
 
     Args:
-        supabase_client: Supabase client instance
+        db: Database instance
         user_id: UUID of the user
 
     Returns:
         Language code (e.g., 'pl', 'en')
     """
     user_response = (
-        supabase_client.table("users")
+        db.table("users")
         .select("preferred_language")
         .eq("id", user_id)
         .execute()

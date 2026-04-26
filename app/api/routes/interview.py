@@ -11,7 +11,7 @@ from api.utils import (
     get_user_language,
     require_data,
 )
-from db.client import get_supabase_client
+from db.query import get_db
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
 from utils.date_parser import parse_date
@@ -34,9 +34,9 @@ async def analyze_event_transcript(
 
     logger.info("analyze_transcript_endpoint", event_id=event_id_str)
 
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    await get_event_for_user(db, event_id_str, user_id_str)
 
     if not body.transcript.strip():
         logger.warning("analyze_transcript_empty", event_id=event_id_str)
@@ -45,12 +45,10 @@ async def analyze_event_transcript(
             detail="Transcript is empty",
         )
 
-    # Get user's preferred language
-    user_language = await get_user_language(supabase, user_id_str)
+    user_language = await get_user_language(db, user_id_str)
 
-    # Fetch existing trace_id for this story session
     event_response = (
-        supabase.table("events")
+        db.table("events")
         .select("trace_id")
         .eq("id", event_id_str)
         .execute()
@@ -83,7 +81,7 @@ async def analyze_event_transcript(
         update_data["place"] = analysis.extracted_place
 
     if update_data:
-        supabase.table("events").update(update_data).eq("id", event_id_str).execute()
+        db.table("events").update(update_data).eq("id", event_id_str).execute()
         logger.info("analyze_transcript_updated_event", event_id=event_id_str, updates=list(update_data.keys()))
 
     result = {
@@ -115,9 +113,9 @@ async def generate_follow_up(
 
     logger.info("generate_follow_up_endpoint", event_id=event_id_str)
 
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    await get_event_for_user(db, event_id_str, user_id_str)
 
     if not body.transcript.strip():
         logger.warning("generate_follow_up_empty", event_id=event_id_str)
@@ -126,12 +124,10 @@ async def generate_follow_up(
             detail="Transcript is empty",
         )
 
-    # Get user's preferred language
-    user_language = await get_user_language(supabase, user_id_str)
+    user_language = await get_user_language(db, user_id_str)
 
-    # Fetch existing trace_id for this story session
     event_response = (
-        supabase.table("events")
+        db.table("events")
         .select("trace_id")
         .eq("id", event_id_str)
         .execute()
@@ -154,7 +150,6 @@ async def generate_follow_up(
             detail=str(e),
         )
 
-    # Trigger question quality evaluation (sampled)
     from services.evaluation import evaluate_question_in_background, should_evaluate
     if should_evaluate():
         evaluate_question_in_background(
@@ -183,12 +178,12 @@ async def create_question(
     event_id_str = str(event_id)
     user_id_str = str(current_user.id)
 
-    supabase = await get_supabase_client()
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    db = await get_db()
+    await get_event_for_user(db, event_id_str, user_id_str)
 
-    supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).eq("was_answered", False).execute()
+    db.table("follow_up_questions").delete().eq("event_id", event_id_str).eq("was_answered", False).execute()
 
-    sequence_order = get_next_sequence_order(supabase, "follow_up_questions", event_id_str)
+    sequence_order = await get_next_sequence_order(db, "follow_up_questions", event_id_str)
 
     question_data = {
         "event_id": event_id_str,
@@ -197,7 +192,7 @@ async def create_question(
         "was_answered": False,
     }
 
-    result = supabase.table("follow_up_questions").insert(question_data).execute()
+    result = db.table("follow_up_questions").insert(question_data).execute()
     require_data(result, "Failed to create question")
 
     return {
@@ -207,4 +202,3 @@ async def create_question(
         "was_answered": False,
         "created_at": result.data[0]["created_at"],
     }
-

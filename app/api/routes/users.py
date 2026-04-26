@@ -11,7 +11,7 @@ from api.schemas.user import (
 )
 from api.utils import require_data, serialize_update_data
 from config import get_settings
-from db.client import get_supabase_client
+from db.query import get_db
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 settings = get_settings()
@@ -22,18 +22,16 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 async def get_user_with_relatives(request: Request, user_id: uuid.UUID) -> UserResponse:
     """Fetch user profile with their relatives."""
-    # Try to reuse user data from request state (set by get_current_user)
     user_data: dict[str, Any] | None = getattr(request.state, "user_data", None)
 
     if user_data is None or str(user_data.get("id")) != str(user_id):
-        supabase = await get_supabase_client()
-        user_response = supabase.table("users").select("*").eq("id", str(user_id)).execute()
+        db = await get_db()
+        user_response = db.table("users").select("*").eq("id", user_id).execute()
         user_data = require_data(user_response, "User not found")
 
-    # Fetch relatives
-    supabase = await get_supabase_client()
+    db = await get_db()
     relatives_response = (
-        supabase.table("relatives").select("*").eq("user_id", str(user_id)).execute()
+        db.table("relatives").select("*").eq("user_id", user_id).execute()
     )
     relatives = [RelativeResponse(**r) for r in relatives_response.data]
 
@@ -68,7 +66,7 @@ async def update_current_user_profile(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Update current user profile."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     update_data = user_update.model_dump(exclude_unset=True)
     if not update_data:
@@ -76,7 +74,7 @@ async def update_current_user_profile(
 
     serialize_update_data(update_data)
 
-    response = supabase.table("users").update(update_data).eq("id", str(current_user.id)).execute()
+    response = db.table("users").update(update_data).eq("id", current_user.id).execute()
     require_data(response, "User not found")
 
     return await get_user_with_relatives(request, current_user.id)
@@ -88,7 +86,7 @@ async def add_relative(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Add a relative to current user's profile."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     relative_data = {
         "user_id": str(current_user.id),
@@ -96,7 +94,7 @@ async def add_relative(
         "relationship": relative_create.relationship,
     }
 
-    response = supabase.table("relatives").insert(relative_data).execute()
+    response = db.table("relatives").insert(relative_data).execute()
     require_data(response, "Failed to create relative")
 
     return RelativeResponse(**response.data[0])
@@ -108,19 +106,19 @@ async def delete_relative(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Delete a relative from current user's profile."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     existing = (
-        supabase.table("relatives")
+        db.table("relatives")
         .select("id")
-        .eq("id", str(relative_id))
-        .eq("user_id", str(current_user.id))
+        .eq("id", relative_id)
+        .eq("user_id", current_user.id)
         .execute()
     )
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relative not found")
 
-    supabase.table("relatives").delete().eq("id", str(relative_id)).execute()
+    db.table("relatives").delete().eq("id", relative_id).execute()
 
     return {"success": True}
 
@@ -132,12 +130,12 @@ async def update_language(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Update preferred language for AI-generated content."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     response = (
-        supabase.table("users")
+        db.table("users")
         .update({"preferred_language": language_update.preferred_language})
-        .eq("id", str(current_user.id))
+        .eq("id", current_user.id)
         .execute()
     )
     require_data(response, "User not found")

@@ -28,7 +28,7 @@ from api.utils import (
     serialize_update_data,
 )
 from config import get_settings
-from db.client import get_supabase_client
+from db.query import get_db
 from services.storage import StorageService
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
@@ -45,17 +45,17 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 
 async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     event_response = (
-        supabase.table("events").select("*").eq("id", str(event_id)).execute()
+        db.table("events").select("*").eq("id", event_id).execute()
     )
     event_data = require_data(event_response, "Event not found")
 
     recordings_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .select("*")
-        .eq("event_id", str(event_id))
+        .eq("event_id", event_id)
         .order("sequence_order")
         .execute()
     )
@@ -70,10 +70,10 @@ async def create_event(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Create a new event."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     event_data = {
-        "user_id": str(current_user.id),
+        "user_id": current_user.id,
         "title": event.title,
         "time_anchor": event.time_anchor,
         "time_anchor_date": event.time_anchor_date.isoformat()
@@ -84,7 +84,7 @@ async def create_event(
         "trace_id": create_trace_id(),
     }
 
-    response = supabase.table("events").insert(event_data).execute()
+    response = db.table("events").insert(event_data).execute()
     require_data(response, "Failed to create event")
 
     return response.data[0]
@@ -96,12 +96,12 @@ async def list_events(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """List all events for user sorted by time_anchor_date."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     response = (
-        supabase.table("events")
+        db.table("events")
         .select("*")
-        .eq("user_id", str(current_user.id))
+        .eq("user_id", current_user.id)
         .order("time_anchor_date", desc=False)
         .order("created_at", desc=False)
         .execute()
@@ -131,7 +131,7 @@ async def update_event(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Update an event."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     update_data = event_update.model_dump(exclude_unset=True)
     if not update_data:
@@ -141,9 +141,9 @@ async def update_event(
     serialize_update_data(update_data)
 
     response = (
-        supabase.table("events")
+        db.table("events")
         .update(update_data)
-        .eq("id", str(event_id))
+        .eq("id", event_id)
         .execute()
     )
     require_data(response, "Event not found")
@@ -158,13 +158,12 @@ async def delete_event(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Delete event and cascade delete recordings/questions/audio files."""
-    supabase = await get_supabase_client()
-    event_id_str = str(event_id)
+    db = await get_db()
 
     recordings_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .select("audio_url")
-        .eq("event_id", event_id_str)
+        .eq("event_id", event_id)
         .execute()
     )
     recordings = recordings_response.data if recordings_response.data else []
@@ -177,12 +176,12 @@ async def delete_event(
         except Exception:
             pass
 
-    supabase.table("evaluation_results").delete().eq("event_id", event_id_str).execute()
-    supabase.table("audio_recordings").delete().eq("event_id", event_id_str).execute()
-    supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).execute()
-    supabase.table("events").delete().eq("id", event_id_str).execute()
+    db.table("evaluation_results").delete().eq("event_id", event_id).execute()
+    db.table("audio_recordings").delete().eq("event_id", event_id).execute()
+    db.table("follow_up_questions").delete().eq("event_id", event_id).execute()
+    db.table("events").delete().eq("id", event_id).execute()
 
-    return {"status": "deleted", "event_id": event_id_str}
+    return {"status": "deleted", "event_id": str(event_id)}
 
 
 @router.get("/{event_id}/recordings", response_model=list[AudioRecordingResponse])
@@ -204,9 +203,9 @@ async def stream_recording_audio(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Stream audio file for a recording."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+    event = await get_event_for_user(db, str(event_id), str(current_user.id))
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -214,10 +213,10 @@ async def stream_recording_audio(
         )
 
     recording_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .select("audio_url")
-        .eq("id", str(recording_id))
-        .eq("event_id", str(event_id))
+        .eq("id", recording_id)
+        .eq("event_id", event_id)
         .execute()
     )
 
@@ -270,13 +269,12 @@ async def add_recording(
     """Add a recording to an event. Accepts audio file via multipart/form-data."""
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    # Fetch existing trace_id for this story
     event_response = (
-        supabase.table("events")
+        db.table("events")
         .select("trace_id")
-        .eq("id", str(event_id))
+        .eq("id", event_id)
         .execute()
     )
     trace_id = None
@@ -285,7 +283,7 @@ async def add_recording(
 
     with story_trace_context(trace_id, str(current_user.id)):
         result = await add_recording_to_event(
-            supabase=supabase,
+            db=db,
             event_id=str(event_id),
             user_id=str(current_user.id),
             file=file,
@@ -305,16 +303,15 @@ async def retry_transcribe(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Retry transcription for an existing recording."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     recording_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .select("*")
-        .eq("id", str(recording_id))
+        .eq("id", recording_id)
         .execute()
     )
 
-    # Handle edge case where response.data exists but is not a list
     if not recording_response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -335,12 +332,10 @@ async def retry_transcribe(
             detail="Recording has no audio file",
         )
 
-    # Get user's preferred language for transcription
-    user_language = await get_user_language(supabase, str(current_user.id))
+    user_language = await get_user_language(db, str(current_user.id))
 
-    # Fetch trace_id from the parent event
     event_response = (
-        supabase.table("events")
+        db.table("events")
         .select("trace_id")
         .eq("id", recording["event_id"])
         .execute()
@@ -362,9 +357,9 @@ async def retry_transcribe(
         )
 
     update_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .update({"transcript": transcript})
-        .eq("id", str(recording_id))
+        .eq("id", recording_id)
         .execute()
     )
 
@@ -379,12 +374,12 @@ async def update_recording_transcript(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Update the encrypted transcript for a recording."""
-    supabase = await get_supabase_client()
+    db = await get_db()
 
     recording_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .select("event_id")
-        .eq("id", str(recording_id))
+        .eq("id", recording_id)
         .execute()
     )
 
@@ -395,12 +390,12 @@ async def update_recording_transcript(
         )
 
     event_id = recording_response.data[0]["event_id"]
-    await get_event_for_user(supabase, event_id, str(current_user.id))
+    await get_event_for_user(db, event_id, str(current_user.id))
 
     update_response = (
-        supabase.table("audio_recordings")
+        db.table("audio_recordings")
         .update({"transcript": body.transcript})
-        .eq("id", str(recording_id))
+        .eq("id", recording_id)
         .execute()
     )
     require_data(update_response, "Failed to update transcript")
@@ -422,13 +417,12 @@ async def complete_event(
     Backend generates summary via LLM and returns plaintext result.
     Client encrypts and stores the result.
     """
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    # Fetch existing trace_id for this story session
     event_response = (
-        supabase.table("events")
+        db.table("events")
         .select("trace_id")
-        .eq("id", str(event_id))
+        .eq("id", event_id)
         .execute()
     )
     trace_id = None
@@ -437,14 +431,13 @@ async def complete_event(
 
     with story_trace_context(trace_id, str(current_user.id)):
         result = await complete_event_session(
-            supabase=supabase,
+            db=db,
             event_id=str(event_id),
             user_id=str(current_user.id),
             transcripts=body.transcripts,
             questions_and_answers=body.questions_and_answers,
         )
 
-    # Trigger evaluation during plaintext phase
     eval_payload = result.pop("_eval_payload", None)
     if eval_payload:
         from services.evaluation import evaluate_in_background, should_evaluate
@@ -486,8 +479,8 @@ async def generate_meta_story_endpoint(
             detail=f"Maximum {settings.max_meta_story_select} sources allowed",
         )
 
-    supabase = await get_supabase_client()
-    user_language = await get_user_language(supabase, str(current_user.id))
+    db = await get_db()
+    user_language = await get_user_language(db, str(current_user.id))
 
     langfuse_client = get_langfuse()
     if langfuse_client:
@@ -535,7 +528,6 @@ async def generate_meta_story_endpoint(
             )
         meta_trace_id = None
 
-    # Run evaluation synchronously when sampled (plaintext available here)
     eval_scores = None
     from services.evaluation import evaluate_output, should_evaluate
     if should_evaluate():
@@ -551,7 +543,6 @@ async def generate_meta_story_endpoint(
                 "completeness": eval_result.completeness,
                 "overall_score": eval_result.overall_score,
             }
-            # Log eval scores to LangFuse trace
             if meta_trace_id:
                 log_score(meta_trace_id, "factual_accuracy", eval_result.factual_accuracy or 0, "eval_type=meta_story")
                 log_score(meta_trace_id, "coherence", eval_result.coherence or 0, "eval_type=meta_story")

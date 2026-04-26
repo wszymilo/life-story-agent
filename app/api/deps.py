@@ -1,47 +1,47 @@
+from __future__ import annotations
+
 import time
 import uuid
+from typing import Annotated
 
 import httpx
 import structlog
-from config import get_settings
-from db.client import get_supabase_client
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
+
+from config import get_settings
+from db.client import execute_single
 
 settings = get_settings()
 logger = structlog.get_logger()
 
+CACHE_TTL_SECONDS = 3600
 
-class CurrentUser(BaseModel):
-    id: uuid.UUID
-    email: str
-
-
-# Custom cached getter to avoid lru_cache issue with async
-_jwks_cache = {"data": None, "expires_at": 0}
-JWKS_TTL_SECONDS = 3600  # 1 hour
+_jwks_cache: dict | None = None
+_jwks_expires_at: float = 0
 
 
 async def get_jwks() -> dict:
-    """Fetch JWKS from Supabase with caching (1 hour TTL)."""
+    """Fetch JWKS from Cognito with caching (1 hour TTL)."""
+    global _jwks_cache, _jwks_expires_at
+
     current_time = time.time()
-    if _jwks_cache["data"] and _jwks_cache["expires_at"] > current_time:
-        return _jwks_cache["data"]
+    if _jwks_cache is not None and _jwks_expires_at > current_time:
+        return _jwks_cache
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        jwks_url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
-        response = await client.get(jwks_url)
+        response = await client.get(settings.cognito_jwks_url)
         response.raise_for_status()
-        jwks = response.json()
+        _jwks_cache = response.json()
+        _jwks_expires_at = current_time + CACHE_TTL_SECONDS
+        logger.info("cognito_jwks_fetched", url=settings.cognito_jwks_url)
 
-    _jwks_cache["data"] = jwks
-    _jwks_cache["expires_at"] = current_time + JWKS_TTL_SECONDS
-    logger.info("jwks_fetched", cached=False)
-    return jwks
+    return _jwks_cache
 
 
 async def decode_token(token: str) -> dict:
+    """Decode and validate Cognito JWT token."""
     try:
         jwks = await get_jwks()
 
@@ -63,9 +63,9 @@ async def decode_token(token: str) -> dict:
         payload = jwt.decode(
             token,
             matching_key,
-            algorithms=["ES256", "RS256"],
+            algorithms=["RS256"],
             options={"verify_aud": False},
-            issuer=f"{settings.supabase_url}/auth/v1",
+            issuer=settings.cognito_issuer,
         )
         return payload
     except JWTError as e:
@@ -79,6 +79,10 @@ async def decode_token(token: str) -> dict:
 async def get_current_user(
     request: Request, authorization: str = Header(default=None)
 ) -> CurrentUser:
+    """Get current authenticated user from Cognito JWT token.
+
+    On first login, automatically creates user record in Aurora if not exists.
+    """
     if not authorization:
         logger.warning("auth_missing_header", path="/api/users/me")
         raise HTTPException(
@@ -114,20 +118,45 @@ async def get_current_user(
             detail="Invalid user ID in token",
         )
 
-    supabase = await get_supabase_client()
-
-    response = supabase.table("users").select("*").eq("id", str(user_id)).execute()
-
-    if not response.data:
-        logger.warning("auth_user_not_found", user_id=str(user_id))
+    email = payload.get("email", "")
+    if not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Token missing email claim",
         )
 
-    user_data = response.data[0]
+    user = await _get_or_create_user(user_id, email)
 
-    # Store user data in request state for reuse in routes
-    request.state.user_data = user_data
+    request.state.user_data = user
 
-    return CurrentUser(id=user_id, email=user_data.get("email", ""))
+    return CurrentUser(id=user_id, email=email)
+
+
+async def _get_or_create_user(user_id: uuid.UUID, email: str) -> dict:
+    """Get user from Aurora or create on first login."""
+    user = await execute_single(
+        "SELECT * FROM users WHERE id = $1",
+        str(user_id),
+    )
+
+    if user is None:
+        logger.info("auth_first_login", user_id=str(user_id), email=email)
+        await execute_single(
+            "INSERT INTO users (id, email, created_at) VALUES ($1, $2, NOW())",
+            str(user_id),
+            email,
+        )
+        user = await execute_single(
+            "SELECT * FROM users WHERE id = $1",
+            str(user_id),
+        )
+
+    if user is None:
+        raise RuntimeError(f"Failed to create or retrieve user {user_id}")
+
+    return dict(user)
+
+
+class CurrentUser(BaseModel):
+    id: uuid.UUID
+    email: str

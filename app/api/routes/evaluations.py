@@ -8,7 +8,7 @@ from api.schemas.evaluation import (
     EvaluationScoresStore,
 )
 from config import get_settings
-from db.client import get_supabase_client
+from db.query import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from services.evaluation import store_evaluation_scores
 
@@ -31,9 +31,9 @@ async def get_dashboard(
     if current_user.email != settings.admin_email:
         raise HTTPException(403, "Admin access only")
 
-    supabase = await get_supabase_client()
+    db = await get_db()
 
-    query = supabase.table("evaluation_results").select("*")
+    query = db.table("evaluation_results").select("*")
     if eval_type:
         query = query.eq("eval_type", eval_type)
 
@@ -58,11 +58,11 @@ async def get_dashboard(
     avg_completeness = sum(r.get("completeness", 0) for r in results.data if r.get("completeness")) / total if total > 0 else None
     avg_overall = sum(r.get("overall_score", 0) for r in results.data if r.get("overall_score")) / total if total > 0 else None
 
-    count_query = supabase.table("evaluation_results").select("count", count="exact")
+    count_query = db.table("evaluation_results").select("count(*) as count")
     if eval_type:
         count_query = count_query.eq("eval_type", eval_type)
-    count_result = count_query.execute()
-    total_count = count_result.count or 0
+    count_result = await count_query.execute()
+    total_count = count_result.rows[0]["count"] if count_result.rows else 0
 
     return DashboardStats(
         total_evaluations=total_count,

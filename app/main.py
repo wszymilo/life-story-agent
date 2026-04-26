@@ -5,7 +5,7 @@ from api.rate_limit_config import limiter
 from api.routes import events, interview, tts, users, evaluations
 from api.sentry_config import init_sentry
 from config import get_settings
-from db.client import get_supabase_client
+from db.client import close_db_pool, get_db_pool
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -44,10 +44,11 @@ async def health_check():
 
 async def _check_db_health():
     """Shared helper to verify database connectivity."""
-    supabase = await get_supabase_client()
     try:
-        result = supabase.table("users").select("count", count="exact").execute()
-        return {"status": "connected", "user_count": result.count}
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            result = await conn.fetchrow("SELECT COUNT(*) as count FROM users")
+            return {"status": "connected", "user_count": result["count"]}
     except Exception as e:
         logger.error("db_check_failed", error=str(e))
         return {"status": "error", "error": str(e)}
@@ -107,6 +108,13 @@ async def startup():
     )
 
 
+@app.on_event("shutdown")
+async def shutdown():
+    """Log application shutdown and close DB pool."""
+    await close_db_pool()
+    logger.info("application_shutdown")
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Capture unhandled exceptions with Sentry."""
@@ -117,9 +125,3 @@ async def global_exception_handler(request, exc):
         status_code=500,
         content={"detail": "Internal server error"},
     )
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Log application shutdown."""
-    logger.info("application_shutdown")
