@@ -1,6 +1,7 @@
 import uuid
 
 from api.deps import CurrentUser, get_current_user
+from api.langfuse_config import story_trace_context
 from api.logging_config import get_logger
 from api.rate_limit_config import limiter
 from api.schemas.event import AnalyzeRequest, FollowUpRequest, QuestionCreateRequest
@@ -59,11 +60,11 @@ async def analyze_event_transcript(
         trace_id = event_response.data[0].get("trace_id")
 
     try:
-        analysis = await analyze_transcript(
-            body.transcript,
-            language=user_language,
-            langfuse_trace_id=trace_id,
-        )
+        with story_trace_context(trace_id, user_id_str):
+            analysis = await analyze_transcript(
+                body.transcript,
+                language=user_language,
+            )
     except Exception as e:
         logger.error("analyze_transcript_failed", event_id=event_id_str, error=str(e))
         raise HTTPException(
@@ -140,12 +141,12 @@ async def generate_follow_up(
         trace_id = event_response.data[0].get("trace_id")
 
     try:
-        question = await generate_follow_up_question(
-            transcript=body.transcript,
-            existing_questions=body.existing_questions,
-            language=user_language,
-            langfuse_trace_id=trace_id,
-        )
+        with story_trace_context(trace_id, user_id_str):
+            question = await generate_follow_up_question(
+                transcript=body.transcript,
+                existing_questions=body.existing_questions,
+                language=user_language,
+            )
     except Exception as e:
         logger.error("generate_follow_up_failed", event_id=event_id_str, error=str(e))
         raise HTTPException(

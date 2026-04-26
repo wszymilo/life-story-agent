@@ -20,7 +20,6 @@ async def add_recording_to_event(
     file: UploadFile,
     recording_type: str,
     duration_seconds: Optional[float],
-    langfuse_trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Orchestrate adding a recording: validate, upload, transcribe, persist.
 
@@ -72,9 +71,7 @@ async def add_recording_to_event(
     transcription_error = None
     try:
         audio_data = await storage.download(public_url)
-        transcript = await transcribe_audio_data(
-            audio_data, language=user_language, langfuse_trace_id=langfuse_trace_id
-        )
+        transcript = await transcribe_audio_data(audio_data, language=user_language)
     except Exception as e:
         transcript = None
         transcription_error = str(e)

@@ -31,7 +31,6 @@ async def generate_summary(
     transcripts: list[str],
     questions_and_answers: list[dict[str, Any]],
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> SummaryWithTitle:
     """Generate a grounded summary using Generator-Reviewer pattern.
 

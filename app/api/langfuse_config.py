@@ -1,18 +1,23 @@
 """LangFuse LLM tracing configuration.
 
 Compatible with LangFuse Python SDK v4.x (OpenTelemetry-based).
-Uses propagate_attributes() + @observe() for trace creation and nesting.
+Uses start_as_current_observation() + @observe() for trace creation and nesting.
 """
 
-from typing import Any
+import uuid
+from contextlib import contextmanager
+from datetime import date
+from typing import Any, Generator
 
-from langfuse import Langfuse
+from langfuse import Langfuse, propagate_attributes
 
 __all__ = [
     "init_langfuse",
     "get_langfuse",
     "log_score",
     "report_generation_usage",
+    "create_trace_id",
+    "story_trace_context",
 ]
 
 from api.logging_config import get_logger
@@ -116,3 +121,37 @@ def report_generation_usage(
         _langfuse_client.update_current_generation(**kwargs)
     except Exception as e:
         logger.warning("langfuse_usage_report_failed", error=str(e))
+
+
+def create_trace_id() -> str:
+    """Generate a valid LangFuse trace ID (32-char lowercase hex)."""
+    return uuid.uuid4().hex
+
+
+@contextmanager
+def story_trace_context(
+    trace_id: str | None,
+    user_id: str,
+) -> Generator[None, None, None]:
+    """Attach subsequent observations to an existing story trace.
+
+    Creates a root SPAN named "story_session" under the given trace_id and
+    propagates user_id / session_id (daily partition) to all child spans.
+
+    If trace_id is None or LangFuse is not configured, yields without effect.
+    """
+    client = get_langfuse()
+    if client and trace_id:
+        with client.start_as_current_observation(
+            name="story_session",
+            as_type="span",
+            trace_context={"trace_id": trace_id},
+        ):
+            with propagate_attributes(
+                user_id=user_id,
+                session_id=f"{user_id}_{date.today().isoformat()}",
+                trace_name="story_session",
+            ):
+                yield
+    else:
+        yield

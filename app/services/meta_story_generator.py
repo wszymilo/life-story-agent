@@ -30,7 +30,6 @@ def _extract_usage(response) -> dict | None:
 async def generate_meta_story(
     sources: list[dict],
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> dict:
     """Generate a meta-story from multiple event sources.
 

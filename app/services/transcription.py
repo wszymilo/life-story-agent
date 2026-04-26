@@ -17,7 +17,6 @@ logger = get_logger()
 async def transcribe_audio_url(
     audio_url: str,
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> str:
     """Transcribe audio from URL using OpenAI Whisper API."""
     if not settings.openai_api_key:
@@ -30,7 +29,7 @@ async def transcribe_audio_url(
         storage = StorageService()
         audio_content = await storage.download(audio_url)
         logger.debug("transcription_downloaded", size_bytes=len(audio_content))
-        return await transcribe_audio_data(audio_content, language, langfuse_trace_id=langfuse_trace_id)
+        return await transcribe_audio_data(audio_content, language)
 
     # Fallback: try direct HTTP download for non-Supabase URLs
     async with httpx.AsyncClient() as client:
@@ -38,14 +37,13 @@ async def transcribe_audio_url(
         response.raise_for_status()
         audio_content = response.content
 
-    return await transcribe_audio_data(audio_content, language, langfuse_trace_id=langfuse_trace_id)
+    return await transcribe_audio_data(audio_content, language)
 
 
 @observe(as_type="generation")
 async def transcribe_audio_data(
     audio_data: bytes,
     language: str = "pl",
-    langfuse_trace_id: str | None = None,
 ) -> str:
     """Transcribe audio bytes using OpenAI Whisper API."""
     if not settings.openai_api_key:
