@@ -30,30 +30,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-1
 
-      - name: Get Aurora endpoint
-        id: aurora
-        run: |
-          ENDPOINT=$(aws rds describe-db-clusters \
-            --db-cluster-identifier ${{ vars.PROJECT_NAME }}-aurora \
-            --query 'DBClusters[0].Endpoint' \
-            --output text)
-          echo "AURORA_ENDPOINT=$ENDPOINT" >> $GITHUB_OUTPUT
-
       - name: Get DB password from Secrets Manager
         id: db-pass
         run: |
           DB_PASS=$(aws secretsmanager get-secret-value \
-            --secret-id ${{ vars.PROJECT_NAME }}/production/db-password \
+            --secret-id '${{ vars.DB_CREDENTIALS_ARN }}' \
             --query 'SecretString' \
-            --output json | jq -r '.password')
+            --output text)
           echo "DB_PASS=$DB_PASS" >> $GITHUB_OUTPUT
 
       - name: Run migrations
         run: |
           docker run --rm \
-            -e PGPASSWORD=${{ steps.db-pass.outputs.DB_PASS }} \
+            -e PGPASSWORD='${{ steps.db-pass.outputs.DB_PASS }}' \
             postgres:16-alpine \
-            psql -h ${{ steps.aurora.outputs.AURORA_ENDPOINT }} \
+            psql -h '${{ vars.AURORA_ENDPOINT }}' \
               -U dbadmin \
               -d life_story_agent \
               -f /migration/001_aurora_schema.sql

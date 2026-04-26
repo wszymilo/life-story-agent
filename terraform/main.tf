@@ -735,3 +735,23 @@ output "ssm_parameter_path" {
   description = "SSM parameter path prefix"
   value       = "/${var.project_name}"
 }
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name"
+  value       = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_name" {
+  description = "ECS service name"
+  value       = aws_ecs_service.main.name
+}
+
+output "frontend_bucket_name" {
+  description = "S3 bucket name for frontend"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "cf_distribution_id" {
+  description = "CloudFront distribution ID"
+  value       = aws_cloudfront_distribution.frontend.id
+}
