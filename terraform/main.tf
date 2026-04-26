@@ -150,14 +150,14 @@ resource "aws_db_subnet_group" "aurora" {
 
 resource "aws_rds_cluster" "main" {
   cluster_identifier        = "${var.project_name}-aurora"
-  engine                   = "aurora-postgresql"
-  engine_version           = "16.4"
-  database_name            = var.db_name
-  master_username         = var.db_username
-  master_password         = random_password.db_password.result
-  db_subnet_group_name    = aws_db_subnet_group.aurora.name
-  storage_encrypted       = true
-  skip_final_snapshot     = true
+  engine                    = "aurora-postgresql"
+  engine_version            = "16.4"
+  database_name             = var.db_name
+  master_username           = var.db_username
+  master_password           = random_password.db_password.result
+  db_subnet_group_name      = aws_db_subnet_group.aurora.name
+  storage_encrypted         = true
+  skip_final_snapshot       = true
   final_snapshot_identifier = "${var.project_name}-final-snapshot"
 
   serverlessv2_scaling_configuration {
@@ -221,10 +221,10 @@ resource "aws_security_group" "aurora" {
 
 resource "aws_rds_cluster_instance" "writer" {
   cluster_identifier = aws_rds_cluster.main.id
-  instance_class    = "db.serverless"
-  identifier        = "${var.project_name}-aurora-writer"
-  engine            = aws_rds_cluster.main.engine
-  engine_version    = aws_rds_cluster.main.engine_version
+  instance_class     = "db.serverless"
+  identifier         = "${var.project_name}-aurora-writer"
+  engine             = aws_rds_cluster.main.engine
+  engine_version     = aws_rds_cluster.main.engine_version
 
   tags = { Name = "${var.project_name}-aurora-writer" }
 }
@@ -236,8 +236,8 @@ resource "aws_cognito_user_pool" "main" {
     minimum_length    = 6
     require_lowercase = false
     require_uppercase = false
-    require_numbers  = true
-    require_symbols  = false
+    require_numbers   = true
+    require_symbols   = false
   }
 
   username_attributes = ["email"]
@@ -261,18 +261,18 @@ resource "aws_cognito_user_pool_client" "main" {
   name         = "${var.project_name}-app-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  generate_secret      = false
-  explicit_auth_flows  = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
+  generate_secret     = false
+  explicit_auth_flows = ["ALLOW_USER_PASSWORD_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
 
   callback_urls = var.allowed_cors_origins != "" ? split(",", var.allowed_cors_origins) : ["http://localhost:5173"]
-  logout_urls    = var.allowed_cors_origins != "" ? split(",", var.allowed_cors_origins) : ["http://localhost:5173"]
+  logout_urls   = var.allowed_cors_origins != "" ? split(",", var.allowed_cors_origins) : ["http://localhost:5173"]
 }
 
 resource "aws_cognito_identity_pool" "main" {
-  identity_pool_name = "${var.project_name}-identity-pool"
+  identity_pool_name               = "${var.project_name}-identity-pool"
   allow_unauthenticated_identities = false
   cognito_identity_providers {
-    client_id = aws_cognito_user_pool_client.main.id
+    client_id     = aws_cognito_user_pool_client.main.id
     provider_name = aws_cognito_user_pool.main.endpoint
   }
 }
@@ -302,8 +302,8 @@ resource "aws_s3_bucket_public_access_block" "audio" {
 
   block_public_acls       = true
   block_public_policy     = true
-  ignore_public_acls       = true
-  restrict_public_buckets  = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_versioning" "frontend" {
@@ -333,8 +333,8 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 
   block_public_acls       = true
   block_public_policy     = true
-  ignore_public_acls       = true
-  restrict_public_buckets  = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
@@ -389,8 +389,8 @@ resource "aws_iam_role" "ecs_execution" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
     }]
   })
@@ -431,8 +431,8 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "ecs-tasks.amazonaws.com" }
     }]
   })
@@ -480,7 +480,7 @@ resource "aws_ecs_cluster" "main" {
 }
 
 resource "aws_ecs_cluster_capacity_providers" "main" {
-  cluster_name = aws_ecs_cluster.main.name
+  cluster_name       = aws_ecs_cluster.main.name
   capacity_providers = ["FARGATE"]
   default_capacity_provider_strategy {
     base              = 1
@@ -495,11 +495,11 @@ resource "aws_security_group" "ecs" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port       = 8000
-    to_port         = 8000
-    protocol        = "tcp"
-    cidr_blocks     = [var.vpc_cidr]
-    description     = "FastAPI from ALB"
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "FastAPI from ALB"
   }
 
   egress {
@@ -565,12 +565,12 @@ resource "aws_lb_target_group" "fastapi" {
   target_type = "ip"
 
   health_check {
-    enabled  = true
-    path     = "/health"
-    protocol = "HTTP"
-    matcher = "200"
-    interval = 30
-    timeout  = 5
+    enabled             = true
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
   }
@@ -578,8 +578,8 @@ resource "aws_lb_target_group" "fastapi" {
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
-  port             = 80
-  protocol         = "HTTP"
+  port              = 80
+  protocol          = "HTTP"
 
   default_action {
     type             = "forward"
@@ -594,7 +594,7 @@ resource "aws_ecs_task_definition" "fastapi" {
   cpu                      = var.ecs_task_cpu
   memory                   = var.ecs_task_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn           = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([{
     name      = "fastapi"
@@ -603,13 +603,13 @@ resource "aws_ecs_task_definition" "fastapi" {
 
     portMappings = [{
       containerPort = 8000
-      protocol     = "tcp"
+      protocol      = "tcp"
     }]
 
     secrets = [{
       name      = "DATABASE_URL"
       valueFrom = aws_secretsmanager_secret.db_credentials.arn
-    }, {
+      }, {
       name      = "OPENAI_API_KEY"
       valueFrom = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/openai-api-key"
     }]
@@ -642,10 +642,10 @@ resource "aws_ecs_task_definition" "fastapi" {
 
 resource "aws_ecs_service" "fastapi" {
   name            = "${var.project_name}-fastapi-service"
-  cluster        = aws_ecs_cluster.main.id
+  cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.fastapi.arn
-  desired_count  = 1
-  launch_type    = "FARGATE"
+  desired_count   = 1
+  launch_type     = "FARGATE"
 
   deployment_controller {
     type = "ECS"

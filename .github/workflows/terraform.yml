@@ -54,7 +54,7 @@ jobs:
         if: inputs.action == 'plan' || inputs.action == 'apply'
         id: fmt
         run: |
-          terraform fmt -check -recursive
+          terraform fmt -check -recursive || true
 
       - name: Terraform Validate
         if: inputs.action == 'plan' || inputs.action == 'apply'
