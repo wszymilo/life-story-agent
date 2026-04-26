@@ -1,17 +1,6 @@
 name: Deploy Frontend
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'tailwind.config.js'
-      - 'tsconfig.json'
-      - '.github/workflows/frontend.yml'
   workflow_dispatch:
 
 jobs:

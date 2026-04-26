@@ -7,17 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY app/pyproject.toml /app/
-COPY app/uv.lock /app/
-COPY app/ /app/
+# Copy project files (paths relative to context: ./aws)
+COPY ../app/pyproject.toml /app/
+COPY ../app/uv.lock /app/
+COPY ../app/ /app/
 
 # Install Python dependencies using uv
 RUN pip install uv && \
     uv sync --frozen --no-dev
 
 # Copy application code (after deps installed for better caching)
-COPY app/ /app/
+COPY ../app/ /app/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1

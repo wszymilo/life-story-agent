@@ -33,10 +33,7 @@ coverage
 *.swo
 
 # Docker
-Dockerfile
 docker-compose*
-.dockerignore
-
-# CI/CD
+CI/CD
 .github/workflows/ci.yml
 .github/workflows/*.test.yml
