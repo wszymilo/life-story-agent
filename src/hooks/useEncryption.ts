@@ -29,7 +29,7 @@ export function useEncryption(): EncryptionState {
 
     try {
       // Try to load existing key
-      const raw = await getKey(user.id)
+      const raw = await getKey(user.userId)
       if (raw) {
         const key = await importKey(raw)
         setState({ key, isReady: true, isGenerating: false, error: null })
@@ -39,7 +39,7 @@ export function useEncryption(): EncryptionState {
       // Generate new key
       const newKey = await generateKey()
       const exported = await exportKey(newKey)
-      await setKey(user.id, exported)
+      await setKey(user.userId, exported)
       setState({ key: newKey, isReady: true, isGenerating: false, error: null })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to initialize encryption'

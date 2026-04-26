@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
-import { supabase } from '../lib/supabase'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { TopBar } from '../components/TopBar'
@@ -59,7 +58,8 @@ export function TimelineScreen() {
 
   const handleConfirmLogout = async () => {
     setLogoutLoading(true)
-    await supabase.auth.signOut()
+    const { signOutUser } = await import('../services/auth')
+    await signOutUser()
     navigate('/login')
   }
 

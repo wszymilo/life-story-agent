@@ -1,17 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getAuthHeader, fetchApi } from './api'
 import { createFetchMock, createErrorResponse, mockFetch } from '../test/fetch-mock'
+import * as authModule from 'aws-amplify/auth'
 
 vi.stubGlobal('fetch', mockFetch)
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { access_token: 'mock-token' } },
-      }),
+vi.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: vi.fn().mockResolvedValue({
+    tokens: {
+      idToken: { toString: () => 'mock-token' },
     },
-  },
+  }),
 }))
 
 describe('api service', () => {
@@ -28,11 +27,7 @@ describe('api service', () => {
     })
 
     it('returns empty object when no token', async () => {
-      const { supabase } = await import('../lib/supabase')
-      vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
-        data: { session: null },
-        error: null,
-      })
+      vi.mocked(authModule.fetchAuthSession).mockRejectedValueOnce(new Error('No session'))
 
       const headers = await getAuthHeader()
 

@@ -233,15 +233,15 @@ class MockTable:
 class TestGetNextSequenceOrder:
     """Tests for get_next_sequence_order helper."""
 
-    def test_returns_1_when_no_records(self):
+    async def test_returns_1_when_no_records(self):
         """Should return 1 when no records exist for event."""
         mock_client = MockSupabaseClient({
             "audio_recordings": [],
         })
-        result = get_next_sequence_order(mock_client, "audio_recordings", "event-123")
+        result = await get_next_sequence_order(mock_client, "audio_recordings", "event-123")
         assert result == 1
 
-    def test_returns_max_plus_1_when_records_exist(self):
+    async def test_returns_max_plus_1_when_records_exist(self):
         """Should return max sequence + 1 when records exist."""
         mock_client = MockSupabaseClient({
             "audio_recordings": [
@@ -250,25 +250,25 @@ class TestGetNextSequenceOrder:
                 {"event_id": "event-123", "sequence_order": 2},
             ],
         })
-        result = get_next_sequence_order(mock_client, "audio_recordings", "event-123")
+        result = await get_next_sequence_order(mock_client, "audio_recordings", "event-123")
         assert result == 4
 
-    def test_handles_null_sequence_order(self):
+    async def test_handles_null_sequence_order(self):
         """Should return 1 when sequence_order is null."""
         mock_client = MockSupabaseClient({
             "audio_recordings": [
                 {"event_id": "event-123", "sequence_order": None},
             ],
         })
-        result = get_next_sequence_order(mock_client, "audio_recordings", "event-123")
+        result = await get_next_sequence_order(mock_client, "audio_recordings", "event-123")
         assert result == 1
 
-    def test_handles_empty_response(self):
+    async def test_handles_empty_response(self):
         """Should return 1 when response has no data."""
         mock_client = MockSupabaseClient({
             "audio_recordings": [],
         })
-        result = get_next_sequence_order(mock_client, "audio_recordings", "event-456")
+        result = await get_next_sequence_order(mock_client, "audio_recordings", "event-456")
         assert result == 1
 
 

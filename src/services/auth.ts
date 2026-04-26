@@ -1,25 +1,27 @@
-import { supabase } from '../lib/supabase'
+import { signIn, signOut, fetchAuthSession } from 'aws-amplify/auth'
 
 export interface AuthResult {
   success: boolean
   error?: string
 }
 
-export async function signInWithMagicLink(email: string): Promise<AuthResult> {
+export async function signInWithPassword(email: string, password: string): Promise<AuthResult> {
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
+    await signIn({
+      username: email,
+      password,
     })
-
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
     return { success: true }
-  } catch {
-    return { success: false, error: 'An unexpected error occurred' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred'
+    return { success: false, error: message }
   }
+}
+
+export async function signOutUser(): Promise<void> {
+  await signOut()
+}
+
+export async function getSession() {
+  return fetchAuthSession()
 }

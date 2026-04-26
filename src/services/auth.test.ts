@@ -1,28 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { signInWithMagicLink } from './auth'
-import { mockSupabase } from '../test/mocks'
+import { signInWithPassword } from './auth'
+import * as authModule from 'aws-amplify/auth'
+
+vi.mock('aws-amplify/auth')
 
 describe('auth service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('signInWithMagicLink', () => {
-    it('returns success when magic link sends successfully', async () => {
-      const result = await signInWithMagicLink('test@example.com')
+  describe('signInWithPassword', () => {
+    it('returns success when sign in succeeds', async () => {
+      vi.mocked(authModule.signIn).mockResolvedValue({ isSignedIn: true } as any)
+
+      const result = await signInWithPassword('test@example.com', 'password123')
       expect(result.success).toBe(true)
       expect(result.error).toBeUndefined()
     })
 
-    it('returns error when API returns error', async () => {
-      mockSupabase.auth.signInWithOtp.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Invalid email' },
-      })
+    it('returns error when sign in fails', async () => {
+      vi.mocked(authModule.signIn).mockRejectedValue(new Error('Invalid password'))
 
-      const result = await signInWithMagicLink('invalid@example.com')
+      const result = await signInWithPassword('test@example.com', 'wrongpassword')
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid email')
+      expect(result.error).toBe('Invalid password')
     })
   })
 })

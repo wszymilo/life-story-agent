@@ -113,6 +113,7 @@ class InsertBuilder:
             param_idx = ", ".join(f"${i+1}" for i in range(len(vals)))
             col_names = ", ".join(cols)
             query = f"INSERT INTO {self._table} ({col_names}) VALUES ({param_idx}) RETURNING *"
+            args = vals
         else:
             if not self._data:
                 return QueryResult([])

@@ -1,11 +1,15 @@
-import { supabase } from '../lib/supabase'
+import { fetchAuthSession } from 'aws-amplify/auth'
 
 export async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
   const headers: HeadersInit = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  try {
+    const session = await fetchAuthSession()
+    const token = session.tokens?.idToken?.toString()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+  } catch {
+    // No active session - return empty headers
   }
   return headers
 }

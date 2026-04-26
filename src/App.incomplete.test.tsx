@@ -57,14 +57,9 @@ describe('Profile redirect - incomplete', () => {
   it('redirects to onboarding when profile is incomplete', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: {
-        id: '123',
-        email: 'test@example.com',
-        app_metadata: {},
-        user_metadata: {},
-        aud: 'authenticated',
-        created_at: '2024-01-01',
+        userId: '123',
+        signInDetails: { loginId: 'test@example.com' },
       },
-      session: null,
       loading: false,
       profile: {
         id: '123',
@@ -78,6 +73,7 @@ describe('Profile redirect - incomplete', () => {
       profileLoading: false,
       isProfileComplete: false,
       refreshProfile: vi.fn(),
+      signOut: vi.fn(),
     })
     
     vi.mocked(getUserProfile).mockResolvedValue({

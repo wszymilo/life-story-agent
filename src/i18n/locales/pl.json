@@ -44,12 +44,16 @@
     "signInHeading": "Zaloguj się przez email",
     "emailLabel": "Adres email",
     "emailPlaceholder": "email@example.pl",
+    "passwordLabel": "Hasło",
+    "passwordPlaceholder": "Wprowadź hasło",
+    "signIn": "Zaloguj się",
     "sendMagicLink": "Wyślij magiczny link",
     "sending": "Wysyłamy...",
+    "passwordInfo": "Wprowadź swój adres email i hasło, aby się zalogować.",
     "magicLinkInfo": "Wyślemy Ci magiczny link. Kliknij go, aby się zalogować.",
-    "successTitle": "Sprawdź swoją skrzynkę email",
-    "successMessage": "Wysłaliśmy magiczny link na adres <strong>{{email}}</strong>. Kliknij link w emailu, aby się zalogować.",
-    "errorSend": "Nie udało się wysłać magicznego linku"
+    "successTitle": "Witaj!",
+    "successMessage": "Zostałeś zalogowany jako <strong>{{email}}</strong>.",
+    "errorSend": "Nie udało się zalogować"
   },
   "onboarding": {
     "welcome": "Witaj",

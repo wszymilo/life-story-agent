@@ -44,12 +44,16 @@
     "signInHeading": "Sign in with Email",
     "emailLabel": "Email address",
     "emailPlaceholder": "you@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signIn": "Sign In",
     "sendMagicLink": "Send Magic Link",
     "sending": "Sending...",
+    "passwordInfo": "Enter your email and password to sign in.",
     "magicLinkInfo": "We'll email you a magic link. Click it to sign in instantly.",
-    "successTitle": "Check your email",
-    "successMessage": "We sent a magic link to <strong>{{email}}</strong>. Click the link in the email to sign in.",
-    "errorSend": "Failed to send magic link"
+    "successTitle": "Welcome!",
+    "successMessage": "You are now signed in as <strong>{{email}}</strong>.",
+    "errorSend": "Failed to sign in"
   },
   "onboarding": {
     "welcome": "Welcome",
