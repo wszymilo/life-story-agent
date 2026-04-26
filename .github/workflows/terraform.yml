@@ -1,0 +1,128 @@
+name: Terraform Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+        default: plan
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+          terraform_wrapper: true
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="region=eu-west-1" \
+            -backend-config="encrypt=true" \
+            -backend-config="dynamodb_table=${{ secrets.TERRAFORM_DDB_TABLE }}"
+
+      - name: Terraform Format Check
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        id: fmt
+        run: |
+          terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        id: validate
+        run: |
+          terraform validate
+
+      - name: Terraform Plan
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        id: plan
+        run: |
+          terraform plan -no-color
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        id: apply
+        run: |
+          terraform apply -auto-approve
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        id: destroy
+        run: |
+          terraform destroy -auto-approve
+
+      - name: Get Terraform Outputs
+        if: inputs.action == 'apply'
+        id: outputs
+        run: |
+          echo "api_url=$(terraform output -raw api_url)" >> $GITHUB_OUTPUT
+          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
+          echo "audio_bucket_name=$(terraform output -raw audio_bucket_name)" >> $GITHUB_OUTPUT
+          echo "aurora_endpoint=$(terraform output -raw aurora_endpoint)" >> $GITHUB_OUTPUT
+          echo "db_credentials_arn=$(terraform output -raw db_credentials_arn)" >> $GITHUB_OUTPUT
+          echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+          echo "ssm_parameter_path=$(terraform output -raw ssm_parameter_path)" >> $GITHUB_OUTPUT
+
+      - name: Set GitHub Variables
+        if: inputs.action == 'apply'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh variable set FRONTEND_API_URL --body "$(terraform output -raw api_url)"
+          gh variable set CLOUDFRONT_URL --body "$(terraform output -raw cloudfront_url)"
+          gh variable set COGNITO_USER_POOL_ID --body "$(terraform output -raw cognito_user_pool_id)"
+          gh variable set COGNITO_CLIENT_ID --body "$(terraform output -raw cognito_client_id)"
+          gh variable set AUDIO_BUCKET --body "$(terraform output -raw audio_bucket_name)"
+          gh variable set AURORA_ENDPOINT --body "$(terraform output -raw aurora_endpoint)"
+          gh variable set DB_CREDENTIALS_ARN --body "$(terraform output -raw db_credentials_arn)"
+          gh variable set ECR_REPOSITORY_URL --body "$(terraform output -raw ecr_repository_url)"
+          gh variable set SSM_PARAMETER_PATH --body "$(terraform output -raw ssm_parameter_path)"
+
+      - name: Clear GitHub Variables
+        if: inputs.action == 'destroy'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh variable delete FRONTEND_API_URL --silent || true
+          gh variable delete CLOUDFRONT_URL --silent || true
+          gh variable delete COGNITO_USER_POOL_ID --silent || true
+          gh variable delete COGNITO_CLIENT_ID --silent || true
+          gh variable delete AUDIO_BUCKET --silent || true
+          gh variable delete AURORA_ENDPOINT --silent || true
+          gh variable delete DB_CREDENTIALS_ARN --silent || true
+          gh variable delete ECR_REPOSITORY_URL --silent || true
+          gh variable delete SSM_PARAMETER_PATH --silent || true
+          gh variable delete FRONTEND_BUCKET --silent || true
+          gh variable delete CF_DISTRIBUTION_ID --silent || true
+          echo "GitHub Variables cleared"

@@ -35,3 +35,7 @@ supabase/.temp/
 certs/
 
 /plan.md
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
