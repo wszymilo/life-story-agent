@@ -290,6 +290,7 @@ This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned impro
 | [`docs/api-spec.md`](./docs/api-spec.md) | Complete backend API specification: endpoints, schemas, auth, errors, rate limits |
 
 
+
 ---
 
 ## License

@@ -1,9 +1,24 @@
-"""LangFuse LLM tracing configuration with trace context, token usage, cost tracking, and scoring."""
+"""LangFuse LLM tracing configuration.
 
-from contextvars import ContextVar
-from typing import Any
+Compatible with LangFuse Python SDK v4.x (OpenTelemetry-based).
+Uses start_as_current_observation() + @observe() for trace creation and nesting.
+"""
 
-from langfuse import Langfuse
+import uuid
+from contextlib import contextmanager
+from datetime import date
+from typing import Any, Generator
+
+from langfuse import Langfuse, propagate_attributes
+
+__all__ = [
+    "init_langfuse",
+    "get_langfuse",
+    "log_score",
+    "report_generation_usage",
+    "create_trace_id",
+    "story_trace_context",
+]
 
 from api.logging_config import get_logger
 from config import get_settings
@@ -12,55 +27,6 @@ settings = get_settings()
 logger = get_logger()
 
 _langfuse_client: Langfuse | None = None
-
-# Cost constants (USD per 1M tokens, or per unit)
-_COST_PER_1M_TOKENS = {
-    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "gpt-4o-mini-2024-07-18": {"input": 0.15, "output": 0.60},
-}
-_COST_PER_MINUTE = {
-    "whisper-1": 0.006,
-}
-_COST_PER_1K_CHARS = {
-    "gpt-4o-mini-tts": 0.015,
-    "gpt-4o-mini-tts-2025-12-15": 0.015,
-    "tts-1": 0.015,
-    "tts-1-hd": 0.030,
-}
-
-# ContextVars for automatic trace/span propagation without explicit passing
-trace_ctx: ContextVar[str | None] = ContextVar("trace_ctx", default=None)
-span_ctx: ContextVar[str | None] = ContextVar("span_ctx", default=None)
-
-
-def _compute_cost(model: str, usage: dict[str, Any] | None) -> float | None:
-    """Compute cost in USD from usage metadata."""
-    if not usage:
-        return None
-
-    cost = 0.0
-    # Chat completion cost
-    if model in _COST_PER_1M_TOKENS:
-        rates = _COST_PER_1M_TOKENS[model]
-        prompt_tokens = usage.get("prompt_tokens", 0)
-        completion_tokens = usage.get("completion_tokens", 0)
-        cost += (prompt_tokens / 1_000_000) * rates["input"]
-        cost += (completion_tokens / 1_000_000) * rates["output"]
-        return round(cost, 6)
-
-    # Whisper cost (per minute)
-    if model in _COST_PER_MINUTE:
-        minutes = usage.get("duration_minutes", 0)
-        cost = minutes * _COST_PER_MINUTE[model]
-        return round(cost, 6)
-
-    # TTS cost (per 1K characters)
-    if model in _COST_PER_1K_CHARS:
-        chars = usage.get("characters", 0)
-        cost = (chars / 1_000) * _COST_PER_1K_CHARS[model]
-        return round(cost, 6)
-
-    return None
 
 
 def init_langfuse() -> Langfuse | None:
@@ -85,113 +51,22 @@ def get_langfuse() -> Langfuse | None:
     return _langfuse_client
 
 
-def start_trace(name: str, user_id: str | None = None, metadata: dict | None = None) -> str | None:
-    """Create a new LangFuse trace and set it as current context.
-
-    Returns the trace_id or None if LangFuse is not configured.
-    """
-    if not _langfuse_client:
-        return None
-
-    try:
-        trace = _langfuse_client.trace(
-            name=name,
-            user_id=user_id,
-            metadata=metadata or {},
-        )
-        trace_id = str(trace.id)
-        trace_ctx.set(trace_id)
-        span_ctx.set(None)
-        logger.debug("langfuse_trace_started", trace_id=trace_id, name=name)
-        return trace_id
-    except Exception as e:
-        logger.warning("langfuse_trace_failed", error=str(e))
-        return None
-
-
-def start_span(name: str, metadata: dict | None = None) -> str | None:
-    """Start a new span under the current trace.
-
-    Returns the span_id or None if LangFuse is not configured.
-    """
-    if not _langfuse_client:
-        return None
-
-    current_trace = trace_ctx.get()
-    if not current_trace:
-        return None
-
-    try:
-        span = _langfuse_client.span(
-            trace_id=current_trace,
-            name=name,
-            metadata=metadata or {},
-        )
-        span_id = str(span.id)
-        span_ctx.set(span_id)
-        logger.debug("langfuse_span_started", trace_id=current_trace, span_id=span_id, name=name)
-        return span_id
-    except Exception as e:
-        logger.warning("langfuse_span_failed", error=str(e))
-        return None
-
-
-def log_generation(
-    prompt: str,
-    completion: str,
-    model: str,
-    usage: dict[str, Any] | None = None,
-    metadata: dict | None = None,
-    status: str = "success",
-    user_id: str | None = None,
-) -> None:
-    """Log an LLM generation to LangFuse inside the current trace/span context.
-
-    Automatically computes cost from usage if provided.
-    """
-    if not _langfuse_client:
-        return
-
-    current_trace = trace_ctx.get()
-    if not current_trace:
-        return
-
-    try:
-        cost = _compute_cost(model, usage)
-        meta = {
-            "user_id": user_id,
-            "status": status,
-            **(metadata or {}),
-        }
-        if cost is not None:
-            meta["cost_usd"] = cost
-
-        _langfuse_client.generation(
-            trace_id=current_trace,
-            name="llm_generation",
-            input={"prompt": prompt[:1000]},
-            output={"completion": completion[:1000]},
-            model=model,
-            usage=usage,
-            metadata=meta,
-        )
-        logger.debug("langfuse_generation_logged", trace_id=current_trace, model=model, status=status)
-    except Exception as e:
-        logger.warning("langfuse_log_failed", error=str(e))
-
-
 def log_score(
     trace_id: str,
     name: str,
     value: float,
     comment: str | None = None,
 ) -> None:
-    """Attach an evaluation score to a LangFuse trace."""
+    """Attach an evaluation score to a LangFuse trace.
+
+    Used by background tasks that run outside the @observe() context.
+    For synchronous scoring inside @observe(), use score_current_trace().
+    """
     if not _langfuse_client:
         return
 
     try:
-        _langfuse_client.score(
+        _langfuse_client.create_score(
             trace_id=trace_id,
             name=name,
             value=value,
@@ -202,39 +77,81 @@ def log_score(
         logger.warning("langfuse_score_failed", error=str(e))
 
 
-def update_trace(
-    trace_id: str,
-    metadata: dict | None = None,
-    status: str | None = None,
+def report_generation_usage(
+    model: str,
+    usage: dict[str, int] | None = None,
 ) -> None:
-    """Update trace metadata (e.g., on session completion)."""
+    """Report token usage for the current LLM generation to LangFuse.
+
+    Must be called from within an @observe() decorated function (or child)
+    while the generation span is still active.  LangFuse calculates costs
+    server-side when model + usage_details are provided.
+
+    Args:
+        model: Model name (e.g. "gpt-4o-mini", "whisper-1").
+        usage: Dict with token counts. Expected keys:
+            - "prompt_tokens" or "input"
+            - "completion_tokens" or "output"
+            - "total_tokens" or "total"
+    """
     if not _langfuse_client:
         return
 
     try:
-        meta = metadata or {}
-        if status:
-            meta["status"] = status
-        _langfuse_client.trace(
-            id=trace_id,
-            metadata=meta,
-        )
-        logger.debug("langfuse_trace_updated", trace_id=trace_id, status=status)
+        kwargs: dict[str, Any] = {"model": model}
+
+        if usage:
+            input_tokens = usage.get("prompt_tokens") or usage.get("input") or 0
+            output_tokens = usage.get("completion_tokens") or usage.get("output") or 0
+            total_tokens = usage.get("total_tokens") or usage.get("total") or (input_tokens + output_tokens)
+            kwargs["usage_details"] = {
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": total_tokens,
+            }
+            logger.debug(
+                "langfuse_usage_reported",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        else:
+            logger.debug("langfuse_model_reported", model=model)
+
+        _langfuse_client.update_current_generation(**kwargs)
     except Exception as e:
-        logger.warning("langfuse_trace_update_failed", error=str(e))
+        logger.warning("langfuse_usage_report_failed", error=str(e))
 
 
-def set_trace_context(trace_id: str | None) -> None:
-    """Set the current trace context (for crossing async boundaries)."""
-    trace_ctx.set(trace_id)
-    span_ctx.set(None)
+def create_trace_id() -> str:
+    """Generate a valid LangFuse trace ID (32-char lowercase hex)."""
+    return uuid.uuid4().hex
 
 
-def get_trace_context() -> str | None:
-    """Get the current trace context."""
-    return trace_ctx.get()
+@contextmanager
+def story_trace_context(
+    trace_id: str | None,
+    user_id: str,
+) -> Generator[None, None, None]:
+    """Attach subsequent observations to an existing story trace.
 
+    Creates a root SPAN named "story_session" under the given trace_id and
+    propagates user_id / session_id (daily partition) to all child spans.
 
-def get_span_context() -> str | None:
-    """Get the current span context."""
-    return span_ctx.get()
+    If trace_id is None or LangFuse is not configured, yields without effect.
+    """
+    client = get_langfuse()
+    if client and trace_id:
+        with client.start_as_current_observation(
+            name="story_session",
+            as_type="span",
+            trace_context={"trace_id": trace_id},
+        ):
+            with propagate_attributes(
+                user_id=user_id,
+                session_id=f"{user_id}_{date.today().isoformat()}",
+                trace_name="story_session",
+            ):
+                yield
+    else:
+        yield

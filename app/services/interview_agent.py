@@ -1,7 +1,8 @@
 import time
 
-from api.langfuse_config import log_generation, start_span
+from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
+from langfuse import observe
 from api.schemas.interview import FollowUpQuestion, TranscriptAnalysis
 from config import get_settings
 from openai import AsyncOpenAI
@@ -39,10 +40,10 @@ def _extract_usage(response) -> dict | None:
     return None
 
 
+@observe(as_type="generation")
 async def analyze_transcript(
     transcript: str,
     language: str = "pl",
-    trace_id: str | None = None,
 ) -> TranscriptAnalysis:
     """Analyze a transcript to extract time, place, people, and themes.
 
@@ -74,8 +75,6 @@ Analyze the transcript and extract:
 Be thorough but concise. If something is not mentioned, leave it as null/empty.
 The transcript is in {display_language} - extract information accordingly."""
 
-    start_span("transcript_analysis", {"language": language})
-
     try:
         logger.info(
             "transcript_analysis_started",
@@ -95,7 +94,9 @@ The transcript is in {display_language} - extract information accordingly."""
 
         duration_ms = (time.perf_counter() - start_time) * 1000
         result = response.choices[0].message.parsed
+
         usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
 
         logger.info(
             "transcript_analysis_completed",
@@ -103,14 +104,6 @@ The transcript is in {display_language} - extract information accordingly."""
             has_time=result.extracted_time is not None,
             has_place=result.extracted_place is not None,
             people_count=len(result.people) if result.people else 0,
-        )
-
-        log_generation(
-            prompt=transcript[:500],
-            completion=str(getattr(result, "model_dump", lambda: vars(result))()),
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "transcript_analysis", "duration_ms": round(duration_ms, 2)},
         )
 
         return result
@@ -126,22 +119,14 @@ The transcript is in {display_language} - extract information accordingly."""
             error_type=type(e).__name__,
         )
 
-        log_generation(
-            prompt=transcript[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "transcript_analysis", "error": err_msg, "error_type": type(e).__name__},
-            status="error",
-        )
-
         raise_openai_error(e, "Analysis")
 
 
+@observe(as_type="generation")
 async def generate_follow_up_question(
     transcript: str,
     existing_questions: list[str],
     language: str = "pl",
-    trace_id: str | None = None,
 ) -> FollowUpQuestion:
     """Generate a contextual follow-up question based on the transcript.
 
@@ -188,8 +173,6 @@ Return a structured question with:
 
 Avoid questions that have already been asked (see existing questions below).{existing_questions_text}"""
 
-    start_span("follow_up_question", {"language": language, "existing_count": existing_count})
-
     try:
         logger.info(
             "follow_up_question_started",
@@ -210,21 +193,15 @@ Avoid questions that have already been asked (see existing questions below).{exi
 
         duration_ms = (time.perf_counter() - start_time) * 1000
         result = response.choices[0].message.parsed
+
         usage = _extract_usage(response)
+        report_generation_usage(model=settings.openai_model, usage=usage)
 
         logger.info(
             "follow_up_question_completed",
             duration_ms=round(duration_ms, 2),
             question_type=result.question_type,
             target_area=result.target_area,
-        )
-
-        log_generation(
-            prompt=transcript[:500],
-            completion=str(getattr(result, "model_dump", lambda: vars(result))()),
-            model=settings.openai_model,
-            usage=usage,
-            metadata={"operation": "follow_up_question", "duration_ms": round(duration_ms, 2)},
         )
 
         return result
@@ -238,14 +215,6 @@ Avoid questions that have already been asked (see existing questions below).{exi
             duration_ms=round(duration_ms, 2),
             error=err_msg,
             error_type=type(e).__name__,
-        )
-
-        log_generation(
-            prompt=transcript[:500],
-            completion="",
-            model=settings.openai_model,
-            metadata={"operation": "follow_up_question", "error": err_msg, "error_type": type(e).__name__},
-            status="error",
         )
 
         raise_openai_error(e, "Question generation")
