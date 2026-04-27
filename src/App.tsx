@@ -9,6 +9,8 @@ import { RecordingScreen } from './components/RecordingScreen'
 import { InterviewScreen } from './components/InterviewScreen'
 import { SummaryScreen } from './components/SummaryScreen'
 import { DebugScreen } from './components/DebugScreen'
+import { SignUpScreen } from './components/SignUpScreen'
+import { VerifyEmailScreen } from './components/VerifyEmailScreen'
 import { TimelineScreen } from './screens/TimelineScreen'
 import { EventDetailScreen } from './screens/EventDetailScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
@@ -55,6 +57,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
+      <Route path="/signup" element={<SignUpScreen />} />
+      <Route path="/verify-email" element={<VerifyEmailScreen />} />
       <Route path="/debug" element={<DebugScreen />} />
       <Route
         path="/onboarding"

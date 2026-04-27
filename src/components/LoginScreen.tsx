@@ -1,12 +1,16 @@
 import { useState, FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link, useLocation } from 'react-router-dom'
 import { signInWithPassword } from '../services/auth'
 
 type LoginState = 'idle' | 'loading' | 'success' | 'error'
 
 export function LoginScreen() {
   const { t } = useTranslation()
-  const [email, setEmail] = useState('')
+  const location = useLocation()
+  const verifiedEmail = (location.state as { verifiedEmail?: string })?.verifiedEmail
+  const [email, setEmail] = useState(verifiedEmail || '')
+  const [showVerifiedMessage, setShowVerifiedMessage] = useState(!!verifiedEmail)
   const [password, setPassword] = useState('')
   const [loginState, setLoginState] = useState<LoginState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -20,6 +24,7 @@ export function LoginScreen() {
 
     if (result.success) {
       setLoginState('success')
+      setShowVerifiedMessage(false)
     } else {
       setLoginState('error')
       setErrorMessage(result.error || t('login.errorSend'))
@@ -98,6 +103,12 @@ export function LoginScreen() {
               />
             </div>
 
+            {showVerifiedMessage && (
+              <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg">
+                {t('login.emailVerified')}
+              </div>
+            )}
+
             {loginState === 'error' && (
               <div className="text-red-600 text-sm" role="alert" aria-live="assertive">{errorMessage}</div>
             )}
@@ -109,8 +120,17 @@ export function LoginScreen() {
             >
               {loginState === 'loading' ? t('login.sending') : t('login.signIn')}
             </button>
-          </form>
+</form>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600 text-sm">
+            {t('login.noAccount')}{' '}
+            <Link to="/signup" className="text-blue-600 hover:underline">
+              {t('login.signUpLink')}
+            </Link>
+          </p>
         </div>
+      </div>
 
         <p className="text-center text-gray-500 text-sm mt-6">
           {t('login.passwordInfo')}

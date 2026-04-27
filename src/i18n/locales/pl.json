@@ -38,7 +38,7 @@
     "followUpAnswer": "Odpowiedź na pytanie uzupełniające",
     "stepOf": "Krok {{step}} z {{total}}"
   },
-  "login": {
+"login": {
     "title": "Wspomnienia",
     "subtitle": "Zachowaj swoje cenne wspomnienia",
     "signInHeading": "Zaloguj się przez email",
@@ -53,7 +53,48 @@
     "magicLinkInfo": "Wyślemy Ci magiczny link. Kliknij go, aby się zalogować.",
     "successTitle": "Witaj!",
     "successMessage": "Zostałeś zalogowany jako <strong>{{email}}</strong>.",
-    "errorSend": "Nie udało się zalogować"
+    "errorSend": "Nie udało się zalogować",
+    "noAccount": "Nie masz konta?",
+    "signUpLink": "Zarejestruj się",
+    "emailVerified": "Email zweryfikowany! Zaloguj się teraz."
+  },
+  "signup": {
+    "title": "Utwórz konto",
+    "emailLabel": "Adres email",
+    "emailPlaceholder": "email@example.pl",
+    "passwordLabel": "Hasło",
+    "passwordPlaceholder": "Utwórz hasło",
+    "confirmPasswordLabel": "Potwierdź hasło",
+    "confirmPasswordPlaceholder": "Potwierdź hasło",
+    "passwordRequirements": "Wymagania dotyczące hasła",
+    "minLength": "Co najmniej 8 znaków",
+    "requireLowercase": "Co najmniej jedna mała litera",
+    "requireUppercase": "Co najmniej jedna wielka litera",
+    "requireNumber": "Co najmniej jedna cyfra",
+    "passwordTooShort": "Hasło musi mieć co najmniej 8 znaków",
+    "passwordMismatch": "Hasła nie są zgodne",
+    "submit": "Utwórz konto",
+    "sending": "Tworzymy konto...",
+    "successTitle": "Sprawdź swój email",
+    "successMessage": "Wysłaliśmy kod weryfikacyjny na adres <strong>{{email}}</strong>.",
+    "goToLogin": "Przejdź do logowania",
+    "errorSend": "Nie udało się utworzyć konta",
+    "haveAccount": "Masz już konto?",
+    "signInLink": "Zaloguj się"
+  },
+  "verify": {
+    "title": "Zweryfikuj swój email",
+    "description": "Wprowadź 6-cyfrowy kod, który wysłaliśmy na adres <strong>{{email}}</strong>",
+    "codeLabel": "Kod weryfikacyjny",
+    "codePlaceholder": "Wprowadź kod",
+    "submit": "Zweryfikuj",
+    "sending": "Weryfikujemy...",
+    "successTitle": "Email zweryfikowany!",
+    "successMessage": "Twój email został zweryfikowany. Możesz się teraz zalogować.",
+    "goToLogin": "Przejdź do logowania",
+    "errorSend": "Nie udało się zweryfikować kodu",
+    "noCode": "Nie otrzymałeś kodu?",
+    "tryAgain": "Spróbuj ponownie"
   },
   "onboarding": {
     "welcome": "Witaj",
