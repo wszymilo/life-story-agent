@@ -8,6 +8,13 @@ const certsExist = fs.existsSync(path.join(certsDir, 'localhost-key.pem'))
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
   server: {
     port: 5173,
     ...(certsExist
