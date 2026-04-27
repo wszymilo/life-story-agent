@@ -1,0 +1,47 @@
+﻿2026-04-26T23:13:08.8631568Z Current runner version: '2.334.0'
+2026-04-26T23:13:08.8669359Z ##[group]Runner Image Provisioner
+2026-04-26T23:13:08.8670738Z Hosted Compute Agent
+2026-04-26T23:13:08.8671638Z Version: 20260213.493
+2026-04-26T23:13:08.8672546Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+2026-04-26T23:13:08.8673762Z Build Date: 2026-02-13T00:28:41Z
+2026-04-26T23:13:08.8674905Z Worker ID: {381ddc42-c3f7-456e-b047-47bfe29bef94}
+2026-04-26T23:13:08.8675959Z Azure Region: eastus2
+2026-04-26T23:13:08.8676927Z ##[endgroup]
+2026-04-26T23:13:08.8679721Z ##[group]Operating System
+2026-04-26T23:13:08.8680643Z Ubuntu
+2026-04-26T23:13:08.8681614Z 24.04.4
+2026-04-26T23:13:08.8682462Z LTS
+2026-04-26T23:13:08.8683175Z ##[endgroup]
+2026-04-26T23:13:08.8684238Z ##[group]Runner Image
+2026-04-26T23:13:08.8685235Z Image: ubuntu-24.04
+2026-04-26T23:13:08.8686201Z Version: 20260413.86.1
+2026-04-26T23:13:08.8688346Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260413.86/images/ubuntu/Ubuntu2404-Readme.md
+2026-04-26T23:13:08.8691363Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260413.86
+2026-04-26T23:13:08.8692894Z ##[endgroup]
+2026-04-26T23:13:08.8698759Z ##[group]GITHUB_TOKEN Permissions
+2026-04-26T23:13:08.8701778Z Actions: write
+2026-04-26T23:13:08.8702621Z ArtifactMetadata: write
+2026-04-26T23:13:08.8703612Z Attestations: write
+2026-04-26T23:13:08.8704458Z Checks: write
+2026-04-26T23:13:08.8705201Z Contents: write
+2026-04-26T23:13:08.8706129Z Deployments: write
+2026-04-26T23:13:08.8706985Z Discussions: write
+2026-04-26T23:13:08.8707739Z Issues: write
+2026-04-26T23:13:08.8709161Z Metadata: read
+2026-04-26T23:13:08.8710525Z Models: read
+2026-04-26T23:13:08.8711550Z Packages: write
+2026-04-26T23:13:08.8712431Z Pages: write
+2026-04-26T23:13:08.8713458Z PullRequests: write
+2026-04-26T23:13:08.8714687Z RepositoryProjects: write
+2026-04-26T23:13:08.8715675Z SecurityEvents: write
+2026-04-26T23:13:08.8716503Z Statuses: write
+2026-04-26T23:13:08.8717541Z VulnerabilityAlerts: read
+2026-04-26T23:13:08.8719076Z ##[endgroup]
+2026-04-26T23:13:08.8722462Z Secret source: Actions
+2026-04-26T23:13:08.8724051Z Prepare workflow directory
+2026-04-26T23:13:08.9330319Z Prepare all required actions
+2026-04-26T23:13:08.9449368Z Getting action download info
+2026-04-26T23:13:09.3393363Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-04-26T23:13:09.4644889Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-04-26T23:13:09.5578938Z Download action repository 'aws-actions/configure-aws-credentials@v4' (SHA:7474bc4690e29a8392af63c5b98e7449536d5c3a)
+2026-04-26T23:13:09.9469418Z Complete job name: Build & Deploy React PWA

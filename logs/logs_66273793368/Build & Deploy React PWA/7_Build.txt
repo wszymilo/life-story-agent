@@ -1,0 +1,31 @@
+﻿2026-04-26T23:13:35.9138950Z ##[group]Run npm run build
+2026-04-26T23:13:35.9139254Z [36;1mnpm run build[0m
+2026-04-26T23:13:35.9161009Z shell: /usr/bin/bash -e {0}
+2026-04-26T23:13:35.9161257Z env:
+2026-04-26T23:13:35.9161605Z   VITE_API_URL: http://life-story-agent-alb-1212510084.eu-west-1.elb.amazonaws.com
+2026-04-26T23:13:35.9162039Z   VITE_COGNITO_REGION: eu-west-1
+2026-04-26T23:13:35.9162316Z   VITE_COGNITO_USER_POOL_ID: eu-west-1_aiTrkzI1V
+2026-04-26T23:13:35.9162638Z   VITE_COGNITO_CLIENT_ID: 12og6q3ci7vu94v3i342d9tapf
+2026-04-26T23:13:35.9162925Z ##[endgroup]
+2026-04-26T23:13:36.0359606Z 
+2026-04-26T23:13:36.0360559Z > life-story-agent@0.1.0 build
+2026-04-26T23:13:36.0361383Z > tsc -b && vite build
+2026-04-26T23:13:36.0361808Z 
+2026-04-26T23:13:41.9783438Z [36mvite v6.4.2 [32mbuilding for production...[36m[39m
+2026-04-26T23:13:42.3005165Z transforming...
+2026-04-26T23:13:47.0285839Z [32m✓[39m 889 modules transformed.
+2026-04-26T23:13:47.2757707Z rendering chunks...
+2026-04-26T23:13:47.4424179Z [33m[plugin vite:reporter] 
+2026-04-26T23:13:47.4427502Z (!) /home/runner/work/life-story-agent/life-story-agent/src/services/auth.ts is dynamically imported by /home/runner/work/life-story-agent/life-story-agent/src/screens/TimelineScreen.tsx but also statically imported by /home/runner/work/life-story-agent/life-story-agent/src/components/LoginScreen.tsx, dynamic import will not move module into another chunk.
+2026-04-26T23:13:47.4430275Z [39m
+2026-04-26T23:13:47.4737107Z computing gzip size...
+2026-04-26T23:13:47.5076395Z [33m
+2026-04-26T23:13:47.5077650Z [2mdist/[22m[32mindex.html                 [39m[1m[2m  0.73 kB[22m[1m[22m[2m │ gzip:   0.40 kB[22m
+2026-04-26T23:13:47.5079949Z [2mdist/[22m[2massets/[22m[35mindex-BPutkxP_.css  [39m[1m[2m 14.85 kB[22m[1m[22m[2m │ gzip:   3.53 kB[22m
+2026-04-26T23:13:47.5081732Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-04-26T23:13:47.5087357Z - Using dynamic import() to code-split the application
+2026-04-26T23:13:47.5089103Z [2mdist/[22m[2massets/[22m[36mindex-dGcQK1oF.js   [39m[1m[2m 27.75 kB[22m[1m[22m[2m │ gzip:   8.26 kB[22m
+2026-04-26T23:13:47.5091007Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-04-26T23:13:47.5092641Z [2mdist/[22m[2massets/[22m[36mindex-DeXBLyaj.js   [39m[1m[33m862.40 kB[39m[22m[2m │ gzip: 245.64 kB[22m
+2026-04-26T23:13:47.5109248Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+2026-04-26T23:13:47.5110088Z [32m✓ built in 5.50s[39m

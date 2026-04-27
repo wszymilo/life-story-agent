@@ -1,0 +1,72 @@
+﻿2026-04-26T23:13:10.0207478Z ##[group]Run actions/checkout@v4
+2026-04-26T23:13:10.0208873Z with:
+2026-04-26T23:13:10.0209341Z   repository: wszymilo/life-story-agent
+2026-04-26T23:13:10.0210093Z   token: ***
+2026-04-26T23:13:10.0210490Z   ssh-strict: true
+2026-04-26T23:13:10.0210901Z   ssh-user: git
+2026-04-26T23:13:10.0211343Z   persist-credentials: true
+2026-04-26T23:13:10.0211804Z   clean: true
+2026-04-26T23:13:10.0212218Z   sparse-checkout-cone-mode: true
+2026-04-26T23:13:10.0212706Z   fetch-depth: 1
+2026-04-26T23:13:10.0213107Z   fetch-tags: false
+2026-04-26T23:13:10.0213573Z   show-progress: true
+2026-04-26T23:13:10.0214004Z   lfs: false
+2026-04-26T23:13:10.0214387Z   submodules: false
+2026-04-26T23:13:10.0214809Z   set-safe-directory: true
+2026-04-26T23:13:10.0215499Z ##[endgroup]
+2026-04-26T23:13:10.1421537Z Syncing repository: wszymilo/life-story-agent
+2026-04-26T23:13:10.1424120Z ##[group]Getting Git version info
+2026-04-26T23:13:10.1425449Z Working directory is '/home/runner/work/life-story-agent/life-story-agent'
+2026-04-26T23:13:10.1427749Z [command]/usr/bin/git version
+2026-04-26T23:13:10.1462734Z git version 2.53.0
+2026-04-26T23:13:10.1493757Z ##[endgroup]
+2026-04-26T23:13:10.1510702Z Temporarily overriding HOME='/home/runner/work/_temp/193f68a1-5f87-487f-bd82-c8714e9dbdbf' before making global git config changes
+2026-04-26T23:13:10.1514028Z Adding repository directory to the temporary git global config as a safe directory
+2026-04-26T23:13:10.1529789Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/life-story-agent/life-story-agent
+2026-04-26T23:13:10.1566609Z Deleting the contents of '/home/runner/work/life-story-agent/life-story-agent'
+2026-04-26T23:13:10.1572343Z ##[group]Initializing the repository
+2026-04-26T23:13:10.1578301Z [command]/usr/bin/git init /home/runner/work/life-story-agent/life-story-agent
+2026-04-26T23:13:10.1690264Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-04-26T23:13:10.1691821Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-04-26T23:13:10.1693305Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-04-26T23:13:10.1694437Z hint: call:
+2026-04-26T23:13:10.1696135Z hint:
+2026-04-26T23:13:10.1696949Z hint: 	git config --global init.defaultBranch <name>
+2026-04-26T23:13:10.1697779Z hint:
+2026-04-26T23:13:10.1699020Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-04-26T23:13:10.1700476Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-04-26T23:13:10.1701620Z hint:
+2026-04-26T23:13:10.1702246Z hint: 	git branch -m <name>
+2026-04-26T23:13:10.1702970Z hint:
+2026-04-26T23:13:10.1704054Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-04-26T23:13:10.1705850Z Initialized empty Git repository in /home/runner/work/life-story-agent/life-story-agent/.git/
+2026-04-26T23:13:10.1708953Z [command]/usr/bin/git remote add origin https://github.com/wszymilo/life-story-agent
+2026-04-26T23:13:10.1732176Z ##[endgroup]
+2026-04-26T23:13:10.1734403Z ##[group]Disabling automatic garbage collection
+2026-04-26T23:13:10.1736417Z [command]/usr/bin/git config --local gc.auto 0
+2026-04-26T23:13:10.1769341Z ##[endgroup]
+2026-04-26T23:13:10.1771166Z ##[group]Setting up auth
+2026-04-26T23:13:10.1776961Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-04-26T23:13:10.1811974Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-04-26T23:13:10.2112412Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-04-26T23:13:10.2147596Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-04-26T23:13:10.2382487Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-04-26T23:13:10.2426734Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-04-26T23:13:10.2676258Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-04-26T23:13:10.2717120Z ##[endgroup]
+2026-04-26T23:13:10.2718611Z ##[group]Fetching the repository
+2026-04-26T23:13:10.2730899Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +f66453ae4e71f85790fa147ab061b296015798df:refs/remotes/origin/dev
+2026-04-26T23:13:10.5717512Z From https://github.com/wszymilo/life-story-agent
+2026-04-26T23:13:10.5720119Z  * [new ref]         f66453ae4e71f85790fa147ab061b296015798df -> origin/dev
+2026-04-26T23:13:10.5724772Z ##[endgroup]
+2026-04-26T23:13:10.5726494Z ##[group]Determining the checkout info
+2026-04-26T23:13:10.5728700Z ##[endgroup]
+2026-04-26T23:13:10.5730088Z [command]/usr/bin/git sparse-checkout disable
+2026-04-26T23:13:10.5754190Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-04-26T23:13:10.5795040Z ##[group]Checking out the ref
+2026-04-26T23:13:10.5796789Z [command]/usr/bin/git checkout --progress --force -B dev refs/remotes/origin/dev
+2026-04-26T23:13:10.6027175Z Switched to a new branch 'dev'
+2026-04-26T23:13:10.6032000Z branch 'dev' set up to track 'origin/dev'.
+2026-04-26T23:13:10.6041368Z ##[endgroup]
+2026-04-26T23:13:10.6082258Z [command]/usr/bin/git log -1 --format=%H
+2026-04-26T23:13:10.6109446Z f66453ae4e71f85790fa147ab061b296015798df

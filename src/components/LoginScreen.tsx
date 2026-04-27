@@ -123,12 +123,14 @@ export function LoginScreen() {
 </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-600 text-sm">
-            {t('login.noAccount')}{' '}
-            <Link to="/signup" className="text-blue-600 hover:underline">
-              {t('login.signUpLink')}
-            </Link>
-          </p>
+          <Link to="/signup">
+          <button
+            type="button"
+            className="w-full mt-4 bg-blue-50 text-blue-600 py-3 px-4 rounded-lg font-medium text-lg hover:bg-blue-100 border border-blue-200"
+          >
+            {t('login.signUpLink')}
+          </button>
+        </Link>
         </div>
       </div>
 

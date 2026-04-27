@@ -1,0 +1,14 @@
+﻿2026-04-26T23:13:24.1267004Z ##[group]Run npm run lint
+2026-04-26T23:13:24.1267330Z [36;1mnpm run lint[0m
+2026-04-26T23:13:24.1289742Z shell: /usr/bin/bash -e {0}
+2026-04-26T23:13:24.1290018Z ##[endgroup]
+2026-04-26T23:13:24.2481900Z 
+2026-04-26T23:13:24.2483028Z > life-story-agent@0.1.0 lint
+2026-04-26T23:13:24.2484108Z > eslint .
+2026-04-26T23:13:24.2484748Z 
+2026-04-26T23:13:30.1220544Z 
+2026-04-26T23:13:30.1221953Z /home/runner/work/life-story-agent/life-story-agent/src/services/auth.test.ts
+2026-04-26T23:13:30.1257063Z ##[warning]  14:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-04-26T23:13:30.1312696Z 
+2026-04-26T23:13:30.1313363Z ✖ 1 problem (0 errors, 1 warning)
+2026-04-26T23:13:30.1313704Z 

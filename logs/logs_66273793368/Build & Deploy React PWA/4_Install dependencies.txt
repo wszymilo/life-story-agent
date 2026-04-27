@@ -1,0 +1,19 @@
+﻿2026-04-26T23:13:12.4696739Z ##[group]Run npm ci
+2026-04-26T23:13:12.4697150Z [36;1mnpm ci[0m
+2026-04-26T23:13:12.4730620Z shell: /usr/bin/bash -e {0}
+2026-04-26T23:13:12.4730967Z ##[endgroup]
+2026-04-26T23:13:23.5705348Z 
+2026-04-26T23:13:23.5728155Z added 655 packages, and audited 656 packages in 11s
+2026-04-26T23:13:23.5729012Z 
+2026-04-26T23:13:23.5729577Z 98 packages are looking for funding
+2026-04-26T23:13:23.5730365Z   run `npm fund` for details
+2026-04-26T23:13:24.0807474Z 
+2026-04-26T23:13:24.0809009Z 14 moderate severity vulnerabilities
+2026-04-26T23:13:24.0809995Z 
+2026-04-26T23:13:24.0810752Z To address issues that do not require attention, run:
+2026-04-26T23:13:24.0811764Z   npm audit fix
+2026-04-26T23:13:24.0812275Z 
+2026-04-26T23:13:24.0813026Z To address all issues (including breaking changes), run:
+2026-04-26T23:13:24.0813934Z   npm audit fix --force
+2026-04-26T23:13:24.0814530Z 
+2026-04-26T23:13:24.0815105Z Run `npm audit` for details.
