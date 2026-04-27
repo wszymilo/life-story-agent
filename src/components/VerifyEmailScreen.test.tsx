@@ -4,18 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { VerifyEmailScreen } from './VerifyEmailScreen'
 
-let mockConfirmSignUp: ReturnType<typeof vi.fn>
-let mockNavigate: ReturnType<typeof vi.fn>
-
 vi.mock('aws-amplify/auth', () => ({
-  confirmSignUp: (...args: unknown[]) => mockConfirmSignUp(...args),
+  confirmSignUp: vi.fn(),
 }))
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
+    useNavigate: vi.fn(),
     useLocation: () => ({ state: { email: 'test@example.com' } }),
   }
 })
@@ -26,8 +23,7 @@ function renderWithRouter(ui: React.ReactElement) {
 
 describe('VerifyEmailScreen', () => {
   beforeEach(() => {
-    mockConfirmSignUp = vi.fn()
-    mockNavigate = vi.fn()
+    vi.clearAllMocks()
   })
 
   it('renders verification form', () => {
@@ -45,7 +41,8 @@ describe('VerifyEmailScreen', () => {
   })
 
   it('calls confirmSignUp on submit', async () => {
-    mockConfirmSignUp.mockResolvedValue({ success: true })
+    const mockConfirmSignUp = vi.mocked((await import('aws-amplify/auth')).confirmSignUp)
+    mockConfirmSignUp.mockResolvedValueOnce({} as any)
 
     renderWithRouter(<VerifyEmailScreen />)
 
@@ -59,7 +56,8 @@ describe('VerifyEmailScreen', () => {
   })
 
   it('shows success and navigate to login on success', async () => {
-    mockConfirmSignUp.mockResolvedValue({ success: true })
+    const mockConfirmSignUp = vi.mocked((await import('aws-amplify/auth')).confirmSignUp)
+    mockConfirmSignUp.mockResolvedValueOnce({} as any)
 
     renderWithRouter(<VerifyEmailScreen />)
 
@@ -73,7 +71,8 @@ describe('VerifyEmailScreen', () => {
   })
 
   it('shows error state on failure', async () => {
-    mockConfirmSignUp.mockRejectedValue(new Error('Invalid code'))
+    const mockConfirmSignUp = vi.mocked((await import('aws-amplify/auth')).confirmSignUp)
+    mockConfirmSignUp.mockRejectedValueOnce(new Error('Invalid code'))
 
     renderWithRouter(<VerifyEmailScreen />)
 
@@ -86,7 +85,8 @@ describe('VerifyEmailScreen', () => {
   })
 
   it('only allows numeric input', async () => {
-    mockConfirmSignUp.mockResolvedValue({ success: true })
+    const mockConfirmSignUp = vi.mocked((await import('aws-amplify/auth')).confirmSignUp)
+    mockConfirmSignUp.mockResolvedValueOnce({} as any)
 
     renderWithRouter(<VerifyEmailScreen />)
 

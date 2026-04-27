@@ -54,7 +54,35 @@ jobs:
 
       - name: Create CloudFront invalidation
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        id: invalidation
         run: |
-          aws cloudfront create-invalidation \
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CF_DISTRIBUTION_ID }} \
-            --paths "/*"
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Waiting for invalidation $INVALIDATION_ID to complete..."
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ vars.CF_DISTRIBUTION_ID }} \
+            --id "$INVALIDATION_ID"
+          echo "✅ Invalidation complete"
+
+      - name: Print deployment info
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+        run: |
+          CF_DOMAIN=$(aws cloudfront get-distribution \
+            --id ${{ vars.CF_DISTRIBUTION_ID }} \
+            --query 'Distribution.DomainName' \
+            --output text)
+
+          {
+            echo "## ✅ Frontend Deployed"
+            echo ""
+            echo "### 🌐 URLs"
+            echo "- **[App URL](https://${CF_DOMAIN})**"
+            echo "- **[GitHub Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**"
+            echo ""
+            echo "### 📋 Quick Links"
+            echo "- [Open Application](https://${CF_DOMAIN})"
+            echo "- [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          } >> $GITHUB_STEP_SUMMARY
