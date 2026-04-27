@@ -234,14 +234,16 @@ resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 
   password_policy {
-    minimum_length    = 6
-    require_lowercase = false
-    require_uppercase = false
+    minimum_length    = 8
+    require_lowercase = true
+    require_uppercase = true
     require_numbers   = true
     require_symbols   = false
   }
 
   username_attributes = ["email"]
+
+  auto_verified_attributes = ["email"]
 
   verification_message_template {
     default_email_option = "CONFIRM_WITH_CODE"
@@ -392,11 +394,14 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled         = true
   is_ipv6_enabled = true
   comment         = "${var.project_name} frontend CDN"
+  default_root_object = "index.html"
 
   origin {
     origin_id                = "S3-${var.project_name}-frontend"
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+    connection_attempts      = 3
+    connection_timeout       = 10
   }
 
   default_cache_behavior {

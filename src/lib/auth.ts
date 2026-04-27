@@ -4,15 +4,11 @@ const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION || 'eu-west-1'
 const COGNITO_USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID || ''
 const COGNITO_CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID || ''
 
-if (!COGNITO_USER_POOL_ID || !COGNITO_CLIENT_ID) {
-  console.warn('[auth] Missing Cognito configuration. Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID')
-}
-
 Amplify.configure({
   Auth: {
     Cognito: {
-      userPoolId: COGNITO_USER_POOL_ID,
-      userPoolClientId: COGNITO_CLIENT_ID,
+      userPoolId: COGNITO_USER_POOL_ID || 'PLACEHOLDER',
+      userPoolClientId: COGNITO_CLIENT_ID || 'PLACEHOLDER',
       loginWith: {
         email: true,
       },
@@ -30,6 +26,10 @@ Amplify.configure({
     },
   },
 })
+
+if (!COGNITO_USER_POOL_ID || !COGNITO_CLIENT_ID) {
+  console.warn('[auth] Missing Cognito configuration. Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID')
+}
 
 export const AUTH_CONFIG = {
   region: COGNITO_REGION,
