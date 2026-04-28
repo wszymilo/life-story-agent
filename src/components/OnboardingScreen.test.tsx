@@ -46,58 +46,67 @@ describe('OnboardingScreen', () => {
 
   it('renders step 1 (name input) initially', () => {
     renderWithRouter(<OnboardingScreen />)
-    expect(screen.getByText('What is your name?')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Your full name')).toBeInTheDocument()
+    expect(screen.getByText(/what is your name/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/your full name/i)).toBeInTheDocument()
   })
 
   it('shows error for empty name on Next', async () => {
     renderWithRouter(<OnboardingScreen />)
-    
+
     const button = screen.getByRole('button', { name: /next/i })
     await userEvent.click(button)
-    
-    expect(await screen.findByText('Please enter your name')).toBeInTheDocument()
+
+    expect(await screen.findByText(/please enter your name/i)).toBeInTheDocument()
   })
 
   it('navigates to step 2 with valid name', async () => {
     renderWithRouter(<OnboardingScreen />)
-    
-    const input = screen.getByPlaceholderText('Your full name')
+
+    const input = screen.getByPlaceholderText(/your full name/i)
     await userEvent.type(input, 'John Doe')
-    
+
     const button = screen.getByRole('button', { name: /next/i })
     await userEvent.click(button)
-    
+
     await waitFor(() => {
-      expect(screen.getByText('When were you born?')).toBeInTheDocument()
+      expect(screen.getByText(/when were you born/i)).toBeInTheDocument()
     })
   })
 
   it('can go back to step 1 from step 2', async () => {
     renderWithRouter(<OnboardingScreen />)
-    
-    const input = screen.getByPlaceholderText('Your full name')
+
+    const input = screen.getByPlaceholderText(/your full name/i)
     await userEvent.type(input, 'John Doe')
-    
+
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
-    
+
     await waitFor(() => {
-      expect(screen.getByText('When were you born?')).toBeInTheDocument()
+      expect(screen.getByText(/when were you born/i)).toBeInTheDocument()
     })
-    
+
     // Click the form's Back button (not the TopBar Back button)
     const backButtons = screen.getAllByRole('button', { name: /back/i })
     await userEvent.click(backButtons[backButtons.length - 1])
-    
+
     await waitFor(() => {
-      expect(screen.getByText('What is your name?')).toBeInTheDocument()
+      expect(screen.getByText(/what is your name/i)).toBeInTheDocument()
     })
   })
 
   it('shows step indicator with 3 dots', () => {
     renderWithRouter(<OnboardingScreen />)
-    
+
     const dots = document.querySelectorAll('.rounded-full')
     expect(dots.length).toBe(3)
+  })
+
+  it('renders language toggle with PL and EN options', () => {
+    renderWithRouter(<OnboardingScreen />)
+
+    const plButton = screen.getByText('PL')
+    const enButton = screen.getByText('EN')
+    expect(plButton).toBeInTheDocument()
+    expect(enButton).toBeInTheDocument()
   })
 })

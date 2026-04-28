@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { signOut } from '../services/auth'
 
 export function DebugScreen() {
   const [token, setToken] = useState<string | null>(null)
@@ -31,7 +32,7 @@ export function DebugScreen() {
   }
 
   const handleClear = async () => {
-    await supabase.auth.signOut()
+    await signOut()
     setToken(null)
     setStatus('Signed out')
   }
