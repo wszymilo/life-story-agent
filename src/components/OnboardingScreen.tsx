@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { updateUserProfile } from '../services/user'
 import { TopBar } from './TopBar'
+import { LanguageToggle } from './LanguageToggle'
 
 const COUNTRIES = [
   'Poland',
@@ -77,7 +78,11 @@ export function OnboardingScreen() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopBar title={t('onboarding.welcome')} back={step > 1 ? { action: handleBack } : undefined} />
+      <TopBar 
+        title={t('onboarding.welcome')} 
+        back={step > 1 ? { action: handleBack } : undefined}
+        tertiaryLeft={<LanguageToggle />}
+      />
       <div className="max-w-md mx-auto p-4">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 text-center">

@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import i18n from '../i18n'
-import { supabase } from '../lib/supabase'
 import { Timeline } from '../components/Timeline'
 import { EventCard } from '../components/EventCard'
 import { TopBar } from '../components/TopBar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { ErrorFallback } from '../components/ErrorFallback'
+import { LanguageToggle } from '../components/LanguageToggle'
 import { listEvents, getEvent, createEvent, updateEvent, generateMetaStory, EventData } from '../services/events'
 import { storeEvaluationScores } from '../services/evaluation'
 import { useAuth } from '../context/AuthContext'
 import { updatePreferredLanguage } from '../services/user'
-import { LANGUAGE_OPTIONS } from '../services/constants'
+import { signOut } from '../services/auth'
 import { useEventSelection } from '../hooks/useEventSelection'
 import { useEncryption } from '../hooks/useEncryption'
 import { encrypt, decrypt } from '../lib/crypto'
@@ -39,12 +38,11 @@ export function TimelineScreen() {
     enterSelectionMode,
   } = useEventSelection()
 
-  const handleLanguageChange = async (lang: string) => {
+  const handleLanguageToggle = async (lang: string) => {
     if (changingLanguage || !profile) return
     setChangingLanguage(true)
     try {
       await updatePreferredLanguage(lang)
-      await i18n.changeLanguage(lang)
       await refreshProfile()
     } catch (err) {
       setError(extractErrorMessage(err, t('timeline.languageError')))
@@ -59,7 +57,7 @@ export function TimelineScreen() {
 
   const handleConfirmLogout = async () => {
     setLogoutLoading(true)
-    await supabase.auth.signOut()
+    await signOut()
     navigate('/login')
   }
 
@@ -209,18 +207,7 @@ export function TimelineScreen() {
         tertiaryLeft={
           !multiSelectMode && (
             <div className="flex items-center gap-2">
-              <select
-                value={currentLanguage}
-                onChange={(e) => handleLanguageChange(e.target.value)}
-                disabled={changingLanguage || !profile}
-                className="px-3 py-2 text-base min-h-10 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50"
-              >
-                {LANGUAGE_OPTIONS.map((opt) => (
-                  <option key={opt.code} value={opt.code}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <LanguageToggle onToggle={handleLanguageToggle} />
               {profile?.is_admin && (
                 <button
                   onClick={() => navigate('/dashboard')}
@@ -278,41 +265,39 @@ export function TimelineScreen() {
         )}
 
         {events.length > 0 && (
-          <>
-            <button
-              type="button"
-              onClick={() => navigate('/record')}
-              className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
-              aria-label={t('timeline.addMemory')}
+          <button
+            type="button"
+            onClick={() => navigate('/record')}
+            className="fixed bottom-6 right-6 w-16 h-16 bg-blue-600 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
+            aria-label={t('timeline.addMemory')}
+          >
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-            </button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          </button>
+        )}
 
-            <ConfirmDialog
-              open={showLogoutDialog}
-              onClose={() => setShowLogoutDialog(false)}
-              onConfirm={handleConfirmLogout}
+        <ConfirmDialog
+          open={showLogoutDialog}
+          onClose={() => setShowLogoutDialog(false)}
+          onConfirm={handleConfirmLogout}
           title={t('timeline.logoutConfirmTitle')}
           message={t('timeline.logoutConfirmMessage')}
           confirmLabel={t('common.signOut')}
           cancelLabel={t('common.cancel')}
-              destructive
-              loading={logoutLoading}
-            />
-          </>
-        )}
+          destructive
+          loading={logoutLoading}
+        />
       </div>
     </div>
   )

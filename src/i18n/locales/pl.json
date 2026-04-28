@@ -60,6 +60,7 @@
   },
   "onboarding": {
     "welcome": "Witaj",
+    "languageLabel": "Język",
     "heading": "Poznajmy się",
     "nameQuestion": "Jak się nazywasz?",
     "namePlaceholder": "Twoje imię i nazwisko",
