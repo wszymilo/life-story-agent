@@ -1,25 +1,51 @@
-import { supabase } from '../lib/supabase'
+import {
+  sendEmailLink,
+  handleEmailLink,
+  signInWithGoogle,
+  signOut as firebaseSignOut,
+  getIdToken,
+} from '../lib/firebase'
 
 export interface AuthResult {
   success: boolean
   error?: string
+  token?: string
 }
 
-export async function signInWithMagicLink(email: string): Promise<AuthResult> {
+export async function signInWithGoogleAuth(): Promise<AuthResult> {
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    })
-
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
-  } catch {
-    return { success: false, error: 'An unexpected error occurred' }
+    const user = await signInWithGoogle()
+    const token = await getIdToken(user)
+    return { success: true, token }
+  } catch (e) {
+    const error = e instanceof Error ? e.message : 'Google sign-in failed'
+    return { success: false, error }
   }
+}
+
+export async function sendMagicLink(email: string): Promise<AuthResult> {
+  try {
+    window.localStorage.setItem('emailForSignIn', email)
+    await sendEmailLink(email)
+    return { success: true }
+  } catch (e) {
+    window.localStorage.removeItem('emailForSignIn')
+    const error = e instanceof Error ? e.message : 'Failed to send magic link'
+    return { success: false, error }
+  }
+}
+
+export async function handleMagicLink(): Promise<AuthResult> {
+  try {
+    const user = await handleEmailLink()
+    const token = await getIdToken(user)
+    return { success: true, token }
+  } catch (e) {
+    const error = e instanceof Error ? e.message : 'Failed to verify magic link'
+    return { success: false, error }
+  }
+}
+
+export async function signOut(): Promise<void> {
+  await firebaseSignOut()
 }

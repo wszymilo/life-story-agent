@@ -20,7 +20,7 @@ settings = get_settings()
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-async def get_user_with_relatives(request: Request, user_id: uuid.UUID) -> UserResponse:
+async def get_user_with_relatives(request: Request, user_id: str) -> UserResponse:
     """Fetch user profile with their relatives."""
     # Try to reuse user data from request state (set by get_current_user)
     user_data: dict[str, Any] | None = getattr(request.state, "user_data", None)

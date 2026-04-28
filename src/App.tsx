@@ -12,6 +12,7 @@ import { DebugScreen } from './components/DebugScreen'
 import { TimelineScreen } from './screens/TimelineScreen'
 import { EventDetailScreen } from './screens/EventDetailScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
+import { AuthCallbackScreen } from './screens/AuthCallbackScreen'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -55,6 +56,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
+      <Route path="/auth/callback" element={<AuthCallbackScreen />} />
       <Route path="/debug" element={<DebugScreen />} />
       <Route
         path="/onboarding"

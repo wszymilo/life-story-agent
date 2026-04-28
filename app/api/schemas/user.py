@@ -1,4 +1,3 @@
-import uuid
 from datetime import date, datetime
 
 from pydantic import BaseModel, Field
@@ -17,7 +16,7 @@ class RelativeCreate(BaseModel):
 
 
 class RelativeResponse(BaseModel):
-    id: uuid.UUID
+    id: str
     name: str
     relationship: str
     created_at: datetime
@@ -26,7 +25,7 @@ class RelativeResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: uuid.UUID
+    id: str
     email: str
     name: str | None
     birth_date: date | None

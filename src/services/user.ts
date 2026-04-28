@@ -24,6 +24,7 @@ export interface UserUpdate {
   name?: string
   birth_date?: string
   country_of_origin?: string
+  preferred_language?: string
 }
 
 export async function getUserProfile(): Promise<UserProfile> {

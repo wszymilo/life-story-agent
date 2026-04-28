@@ -4,36 +4,23 @@ import { createFetchMock, createErrorResponse, mockFetch } from '../test/fetch-m
 
 vi.stubGlobal('fetch', mockFetch)
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { access_token: 'mock-token' } },
-      }),
-    },
-  },
-}))
-
 describe('api service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetch.mockClear()
+    localStorage.removeItem('firebase_token')
   })
 
   describe('getAuthHeader', () => {
     it('returns token in Authorization header', async () => {
+      localStorage.setItem('firebase_token', 'mock-token')
+
       const headers = await getAuthHeader()
 
       expect(headers).toHaveProperty('Authorization', 'Bearer mock-token')
     })
 
     it('returns empty object when no token', async () => {
-      const { supabase } = await import('../lib/supabase')
-      vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
-        data: { session: null },
-        error: null,
-      })
-
       const headers = await getAuthHeader()
 
       expect(headers).toEqual({})
@@ -42,6 +29,7 @@ describe('api service', () => {
 
   describe('fetchApi', () => {
     it('merges auth headers with options', async () => {
+      localStorage.setItem('firebase_token', 'mock-token')
       mockFetch.mockResolvedValueOnce(createFetchMock())
 
       await fetchApi('/api/test', { method: 'POST' })

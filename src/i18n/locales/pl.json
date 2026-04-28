@@ -49,7 +49,14 @@
     "magicLinkInfo": "Wyślemy Ci magiczny link. Kliknij go, aby się zalogować.",
     "successTitle": "Sprawdź swoją skrzynkę email",
     "successMessage": "Wysłaliśmy magiczny link na adres <strong>{{email}}</strong>. Kliknij link w emailu, aby się zalogować.",
-    "errorSend": "Nie udało się wysłać magicznego linku"
+    "errorSend": "Nie udało się wysłać magicznego linku",
+    "errorGoogle": "Nie udało się zalogować przez Google",
+    "howToSignIn": "Jak chcesz się zalogować?",
+    "signInWithGoogle": "Zaloguj się przez Google",
+    "signInWithEmail": "Zaloguj się przez email",
+    "or": "lub",
+    "signingInWithGoogle": "Logowanie przez Google...",
+    "pleaseWait": "Proszę czekać..."
   },
   "onboarding": {
     "welcome": "Witaj",

@@ -57,14 +57,10 @@ describe('Profile redirect - incomplete', () => {
   it('redirects to onboarding when profile is incomplete', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: {
-        id: '123',
+        uid: '123',
         email: 'test@example.com',
-        app_metadata: {},
-        user_metadata: {},
-        aud: 'authenticated',
-        created_at: '2024-01-01',
-      },
-      session: null,
+      } as any,
+      token: 'firebase-token',
       loading: false,
       profile: {
         id: '123',
