@@ -26,6 +26,8 @@ class Settings:
     admin_email: str = ""
     eval_enabled: bool = False
     eval_sample_rate: float = 0.1
+    firebase_credentials: str = ""
+    firebase_project_id: str = ""
 
     def __init__(self) -> None:
         self.supabase_url = os.getenv("SUPABASE_URL", "")
@@ -47,6 +49,8 @@ class Settings:
         self.admin_email = os.getenv("ADMIN_EMAIL", "")
         self.eval_enabled = os.getenv("EVAL_ENABLED", "false").lower() == "true"
         self.eval_sample_rate = float(os.getenv("EVAL_SAMPLE_RATE", "0.1"))
+        self.firebase_credentials = os.getenv("FIREBASE_CREDENTIALS", "")
+        self.firebase_project_id = os.getenv("FIREBASE_PROJECT_ID", "")
 
 
 @lru_cache

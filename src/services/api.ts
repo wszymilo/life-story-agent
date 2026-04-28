@@ -1,8 +1,5 @@
-import { supabase } from '../lib/supabase'
-
 export async function getAuthHeader(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+  const token = localStorage.getItem('firebase_token')
   const headers: HeadersInit = {}
   if (token) {
     headers['Authorization'] = `Bearer ${token}`

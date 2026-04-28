@@ -1,12 +1,11 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react'
-import { User, Session } from '@supabase/supabase-js'
 import i18n from '../i18n'
-import { supabase } from '../lib/supabase'
 import { getUserProfile, isProfileComplete, UserProfile } from '../services/user'
+import { onAuthChange, getIdToken, User } from '../lib/firebase'
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
+  token: string | null
   loading: boolean
   profile: UserProfile | null
   profileLoading: boolean
@@ -18,7 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 function AuthProviderComponent({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -35,7 +34,6 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
       .then((data) => {
         setProfile(data)
         setProfileLoading(false)
-        // Sync i18n language with user profile preference
         const lang = data?.preferred_language
         if (lang && (lang === 'pl' || lang === 'en') && i18n.language !== lang) {
           i18n.changeLanguage(lang)
@@ -50,33 +48,29 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setSession(session)
-      setLoading(false)
-      if (session?.user) {
-        loadProfile(session.user.id)
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      setUser(firebaseUser)
+      if (firebaseUser) {
+        try {
+          const idToken = await getIdToken(firebaseUser)
+          setToken(idToken)
+          localStorage.setItem('firebase_token', idToken)
+        } catch (e) {
+          setToken(null)
+          localStorage.removeItem('firebase_token')
+        }
+        setLoading(false)
+        loadProfile(firebaseUser.uid)
       } else {
+        setToken(null)
+        localStorage.removeItem('firebase_token')
+        setLoading(false)
         setProfile(null)
         setProfileLoading(false)
       }
     })
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      setSession(session)
-      setLoading(false)
-      if (session?.user) {
-        loadProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setProfileLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    return () => unsubscribe()
   }, [])
 
   const refreshProfile = async () => {
@@ -85,7 +79,6 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
     try {
       const data = await getUserProfile()
       setProfile(data)
-      // Sync i18n language with user profile preference
       const lang = data?.preferred_language
       if (lang && (lang === 'pl' || lang === 'en') && i18n.language !== lang) {
         i18n.changeLanguage(lang)
@@ -101,7 +94,7 @@ function AuthProviderComponent({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        session,
+        token,
         loading,
         profile,
         profileLoading,
@@ -123,6 +116,5 @@ function useAuthContext() {
 }
 
 export const AuthProvider = AuthProviderComponent
-// eslint-disable-next-line react-refresh/only-export-components
 export { useAuthContext as useAuth, AuthContext }
 export type { AuthContextType }

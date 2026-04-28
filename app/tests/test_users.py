@@ -38,11 +38,10 @@ class TestLanguagePreference:
 
     def test_user_response_has_is_admin_default_false(self):
         from api.schemas.user import UserResponse
-        import uuid
         from datetime import datetime
 
         response = UserResponse(
-            id=uuid.uuid4(),
+            id="firebase-uid-123",
             email="user@example.com",
             name=None,
             birth_date=None,

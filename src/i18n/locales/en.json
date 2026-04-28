@@ -49,7 +49,14 @@
     "magicLinkInfo": "We'll email you a magic link. Click it to sign in instantly.",
     "successTitle": "Check your email",
     "successMessage": "We sent a magic link to <strong>{{email}}</strong>. Click the link in the email to sign in.",
-    "errorSend": "Failed to send magic link"
+    "errorSend": "Failed to send magic link",
+    "errorGoogle": "Google sign-in failed",
+    "howToSignIn": "How would you like to sign in?",
+    "signInWithGoogle": "Sign in with Google",
+    "signInWithEmail": "Sign in with Email",
+    "or": "or",
+    "signingInWithGoogle": "Signing in with Google...",
+    "pleaseWait": "Please wait..."
   },
   "onboarding": {
     "welcome": "Welcome",

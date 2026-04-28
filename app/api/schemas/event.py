@@ -1,4 +1,3 @@
-import uuid
 from datetime import date, datetime
 from typing import Optional
 
@@ -22,8 +21,8 @@ class EventUpdate(BaseModel):
 
 
 class EventResponse(BaseModel):
-    id: uuid.UUID
-    user_id: uuid.UUID
+    id: str
+    user_id: str
     title: Optional[str]
     time_anchor: Optional[str]
     time_anchor_date: Optional[date]
@@ -37,15 +36,15 @@ class EventResponse(BaseModel):
 
 
 class AudioRecordingCreate(BaseModel):
-    event_id: uuid.UUID
+    event_id: str
     sequence_order: int = 1
     recording_type: str = "initial_story"
     duration_seconds: Optional[float] = None
 
 
 class AudioRecordingResponse(BaseModel):
-    id: uuid.UUID
-    event_id: uuid.UUID
+    id: str
+    event_id: str
     sequence_order: int
     audio_url: Optional[str]
     transcript: Optional[str]

@@ -97,9 +97,18 @@ app.include_router(evaluations.router)
 
 @app.on_event("startup")
 async def startup():
-    """Log application startup and init Sentry/LangFuse."""
+    """Log application startup and init Sentry/LangFuse/Firebase."""
     init_sentry()
     init_langfuse()
+
+    from services.firebase_auth import init_firebase
+    if settings.firebase_credentials:
+        try:
+            init_firebase(settings.firebase_credentials)
+            logger.info("firebase_auth_initialized", project_id=settings.firebase_project_id)
+        except Exception as e:
+            logger.error("firebase_init_failed", error=str(e))
+
     logger.info(
         "application_started",
         environment=settings.environment,

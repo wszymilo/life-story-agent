@@ -1,6 +1,17 @@
 import { vi } from 'vitest'
 import en from '../i18n/locales/en.json'
 
+const storage: Record<string, string> = {}
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: (key: string) => storage[key] ?? null,
+    setItem: (key: string, value: string) => { storage[key] = value },
+    removeItem: (key: string) => { delete storage[key] },
+    clear: () => { Object.keys(storage).forEach(k => delete storage[k]) },
+  },
+  writable: true,
+})
+
 const mockSession = {
   access_token: 'mock-token-123',
   refresh_token: 'mock-refresh-token',
@@ -41,6 +52,29 @@ function getTranslation(key: string, options?: Record<string, unknown>): string 
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabase),
+}))
+
+vi.mock('../lib/firebase', () => ({
+  auth: {
+    currentUser: null,
+    onAuthStateChanged: vi.fn((callback: (user: null) => void) => {
+      callback(null)
+      return vi.fn()
+    }),
+  },
+  googleProvider: {},
+  isEmailLink: vi.fn(() => false),
+  sendEmailLink: vi.fn().mockResolvedValue(undefined),
+  handleEmailLink: vi.fn().mockRejectedValue(new Error('Email link not mocked')),
+  signInWithGoogle: vi.fn().mockRejectedValue(new Error('Google sign-in not mocked')),
+  signOut: vi.fn().mockResolvedValue(undefined),
+  onAuthChange: vi.fn((callback: (user: null) => void) => {
+    callback(null)
+    return vi.fn()
+  }),
+  getIdToken: vi.fn().mockResolvedValue('mock-firebase-token'),
+  getCurrentUser: vi.fn(() => null),
+  User: {},
 }))
 
 vi.mock('react-i18next', () => ({

@@ -11,6 +11,12 @@ const COUNTRIES = [
   'United States',
 ]
 
+const COUNTRY_TO_LANGUAGE: Record<string, string> = {
+  'Poland': 'pl',
+  'United Kingdom': 'en',
+  'United States': 'en',
+}
+
 export function OnboardingScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -59,6 +65,7 @@ export function OnboardingScreen() {
         name: name.trim(),
         birth_date: birthDate,
         country_of_origin: country,
+        preferred_language: COUNTRY_TO_LANGUAGE[country] || 'pl',
       })
       await refreshProfile()
       navigate('/', { replace: true })
