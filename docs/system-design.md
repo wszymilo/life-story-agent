@@ -44,7 +44,7 @@ graph TB
 
     subgraph External["Managed Services"]
         T[(Supabase PostgreSQL)]
-        U[Supabase Auth]
+        U[Firebase Auth]
         V[Supabase Storage]
     end
 
@@ -79,7 +79,7 @@ graph TB
 | Frontend | React 18, Tailwind CSS, Vite | PWA with voice-first UI, client-side encryption, offline PWA shell |
 | Backend | Python 3.12, FastAPI | REST API, auth middleware, service orchestration |
 | Database | Supabase PostgreSQL | User profiles, events, recordings, questions, evaluations |
-| Auth | Supabase Auth | Magic link email authentication, JWT tokens |
+| Auth | Firebase Auth | Magic link + Google OAuth, Firebase ID tokens |
 | Storage | Supabase Storage | Private audio bucket for webm recordings |
 | LLM | OpenAI GPT-4o-mini | Transcript analysis, follow-up questions, summaries, titles |
 | STT | OpenAI Whisper | Audio transcription with Polish language support |
@@ -135,15 +135,18 @@ graph TB
 
 **Trade-off**: Repeated TTS for the same text regenerates audio each time.
 
-### 3.5 Supabase over Self-Managed PostgreSQL
+### 3.5 Firebase Auth + Supabase Storage
 
-**Decision**: Use Supabase as the managed backend for database, auth, and storage.
+**Decision**: Use Firebase Authentication with Supabase for database and storage.
 
 **Rationale**:
-- Built-in authentication with magic links
-- Automatic RLS policy enforcement
-- Managed PostgreSQL with backups
-- Free tier sufficient for MVP
+- Firebase provides reliable magic link + Google OAuth authentication
+- Backend verifies Firebase ID tokens directly (no Supabase Auth JWT)
+- Supabase managed PostgreSQL with backups for structured data
+- Supabase Storage for audio files
+- Free tiers sufficient for MVP
+
+**Trade-off**: Two separate auth systems (Firebase for auth, Supabase for data) vs. a unified Supabase Auth approach.
 
 ---
 
@@ -363,16 +366,16 @@ This **Dance Flow** ensures that:
 | UI Components | shadcn/ui | — | Accessible component primitives |
 | State Management | TanStack Query | 5 | Server state caching, mutations |
 | Auth Context | React Context | — | Global auth state, profile |
+| Frontend Auth | Firebase JS SDK | — | Magic link + Google OAuth, ID token management |
 | Backend Framework | FastAPI | 0.115 | REST API, dependency injection |
 | Python | CPython | 3.12 | Runtime |
 | Async HTTP | httpx | — | Supabase client, external APIs |
 | Database ORM | Supabase Python SDK | 2 | PostgreSQL client |
-| Auth/JWT | python-jose | — | JWT validation, Supabase JWKS |
+| Auth/JWT | firebase-admin | — | Firebase ID token verification |
 | Logging | structlog | — | Structured JSON logging |
 | Rate Limiting | slowapi | — | API rate limiting |
 | LLM Client | OpenAI Python SDK | 1 | GPT-4o-mini, TTS, Whisper |
 | Database | PostgreSQL | 15 | Managed by Supabase |
-| Auth Provider | Supabase Auth | — | Magic link, JWT sessions |
 | Object Storage | Supabase Storage | — | Private audio bucket |
 | Error Tracking | Sentry | — | Exception capture |
 | Tracing | LangFuse | — | Full LLM trace observability with token usage, cost tracking, and scoring |
@@ -392,7 +395,7 @@ erDiagram
     EVENTS ||--o{ EVALUATION_RESULTS : evaluated
 
     USERS {
-        uuid id PK
+        text id PK "Firebase UID (e.g. Qbx31ENEd5OyeFjscO7uNwkFm4U2)"
         string email UK
         string name
         date birth_date
@@ -404,7 +407,7 @@ erDiagram
 
     RELATIVES {
         uuid id PK
-        uuid user_id FK
+        text user_id FK "references users.id"
         string name
         string relationship
         datetime created_at
@@ -412,7 +415,7 @@ erDiagram
 
     EVENTS {
         uuid id PK
-        uuid user_id FK
+        text user_id FK "references users.id"
         string title
         string time_anchor
         date time_anchor_date
@@ -461,7 +464,8 @@ erDiagram
 
 ### Key Design Notes
 
-- **RLS (Row Level Security)**: All tables have RLS policies ensuring users can only access their own data
+- **Auth Strategy**: Backend verifies Firebase ID tokens on every request via `firebase-admin` SDK. Database has no RLS (Row Level Security disabled); all data access is controlled by the API layer.
+- **User ID Type**: `users.id` stores Firebase UIDs (alphanumeric strings like `Qbx31ENEd5OyeFjscO7uNwkFm4U2`). All `user_id` foreign keys are TEXT to match.
 - **Ciphertext Storage**: `events.title`, `events.summary`, and `audio_recordings.transcript` contain AES-256-GCM ciphertext in production
 - **Event Status**: `draft` (in-progress session) or `complete` (session ended, summary generated)
 - **Meta-Story Linking**: `events.source_event_ids` is a JSON array referencing parent events for combined narratives
@@ -490,9 +494,8 @@ graph TB
 
     subgraph Supabase["Supabase Project"]
         F[(PostgreSQL)]
-        G[Auth Service]
-        H[Storage Bucket]
-        I[PostgREST API]
+        G[Storage Bucket]
+        H[PostgREST API]
     end
 
     subgraph OpenAI["OpenAI Platform"]
@@ -508,10 +511,10 @@ graph TB
     end
 
     A -->|HTTPS| B
-    A -->|API Calls<br/>Authorization: Bearer JWT| D
+    A -->|API Calls<br/>Authorization: Bearer Firebase ID Token| D
     D -->|Supabase SDK| F
-    D -->|Supabase Auth| G
-    D -->|Supabase Storage| H
+    D -->|Supabase Storage| G
+    D -->|HTTP/JSON| H
     D -->|HTTP/JSON| J
     D -->|HTTP/JSON| K
     D -->|HTTP/JSON| L
@@ -536,14 +539,14 @@ graph TB
 
 ### Authentication & Authorization
 
-- **Magic Link Auth**: Users authenticate via email magic links (Supabase Auth). No passwords to remember.
-- **JWT Validation**: Backend validates Supabase JWTs on every request using JWKS with 1-hour TTL caching.
-- **Algorithm Agnostic**: Supports both ES256 and RS256 signatures (Supabase uses ES256).
+- **Firebase Auth**: Users authenticate via email magic links or Google OAuth. No passwords to remember.
+- **Firebase ID Token Validation**: Backend validates Firebase ID tokens on every request using `firebase-admin` SDK. Tokens are verified against Firebase's public keys.
+- **Admin Access**: Dashboard access controlled by comparing `current_user.email` against `ADMIN_EMAIL` environment variable.
 
 ### Data Protection
 
 - **Client-Side Encryption**: AES-256-GCM for all user-generated text. Keys never transmitted.
-- **RLS Policies**: PostgreSQL Row Level Security ensures data isolation at the database level.
+- **API-Level Access Control**: All database access is controlled by the API layer which validates Firebase ID tokens before every operation. RLS is disabled on all tables.
 - **Private Storage**: Audio bucket is private; all playback goes through authenticated streaming endpoints.
 - **HTTPS Everywhere**: Local dev uses self-signed certs; production uses automatic HTTPS via hosting providers.
 
@@ -678,7 +681,7 @@ flowchart LR
 
 | Extension | Description | Status |
 |-----------|-------------|--------|
-| **i18n / Polish UI** | Full Polish translation of UI labels and AI prompts | Planned — backend supports language param, frontend UI is English |
+| **i18n / Polish UI** | Full Polish translation of UI labels and AI prompts | **Implemented** — Polish (pl) and English (en) with 188 translation keys per locale |
 | **Wikipedia Context Enrichment** | Query historical facts for event timeframe (world + Poland-specific) | Stretch goal — deferred |
 | **Photo Upload Integration** | Upload photos to spark memories | Out of scope for v1 |
 | **Offline Mode** | Queue recordings when offline, sync when connected | Out of scope for v1 |
@@ -704,14 +707,15 @@ flowchart LR
 | `/api/events/{id}/recordings/{rid}/audio` | GET | Yes | Stream audio playback |
 | `/api/events/{id}/analyze` | POST | Yes | Analyze transcript |
 | `/api/events/{id}/follow-up` | POST | Yes | Generate follow-up question |
-| `/api/recordings/{id}/transcribe` | POST | Yes | Retry transcription for recording |
-| `/api/recordings/{id}/transcript` | PUT | Yes | Update encrypted transcript |
+| `/api/events/{id}/questions` | POST | Yes | Store follow-up question |
+| `/api/events/recordings/{id}/transcribe` | POST | Yes | Retry transcription for recording |
+| `/api/events/recordings/{id}/transcript` | PUT | Yes | Update encrypted transcript |
 | `/api/users/me/language` | PUT | Yes | Update preferred language |
 | `/api/events/meta-generate` | POST | Yes | Generate meta-story from sources |
-| `/api/tts` | POST | Yes | Generate speech (streaming) |
+| `/api/tts/generate` | POST | Yes | Generate speech (streaming) |
 | `/api/evaluations/dashboard` | GET | Admin | Evaluation statistics |
 | `/api/evaluations/scores` | POST | Yes | Store evaluation scores |
 
 ---
 
-*Document version: 1.3 | Last updated: 2026-04-24*
+*Document version: 1.4 | Last updated: 2026-05-18*

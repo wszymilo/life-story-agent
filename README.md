@@ -58,7 +58,7 @@ Users speak their memories naturally. The system transcribes, asks intelligent f
 - **Client-side encryption** — All user content encrypted in the browser with AES-256-GCM before reaching the backend
 - **Meta-story generation** — Combine multiple events into a single flowing narrative with source attribution
 - **ZIP export** — Download complete stories as markdown + original audio/text sources, generated entirely in the browser
-- **Magic link authentication** — No passwords to remember; Supabase Auth sends email magic links
+- **Magic link authentication** — No passwords to remember; Firebase Auth sends email magic links or supports Google sign-in
 - **LLM observability** — LangFuse traces track every AI interaction with token usage, cost, and quality scores
 - **LLM-as-judge evaluation** — Automated factual accuracy, coherence, and completeness scoring on a sample of generations
 
@@ -70,8 +70,8 @@ Users speak their memories naturally. The system transcribes, asks intelligent f
 |-------|-----------|---------|
 | **Frontend** | React, TypeScript, Vite, Tailwind CSS | React 18, Vite 6, TS 5.6, Tailwind 3.4 |
 | **Backend** | Python, FastAPI, Pydantic | Python 3.12, FastAPI 0.115 |
-| **Database** | Supabase PostgreSQL | Managed, with RLS |
-| **Auth** | Supabase Auth | Magic links, JWT |
+| **Database** | Supabase PostgreSQL | Managed, API-level access control |
+| **Auth** | Firebase Auth | Magic links + Google OAuth, Firebase ID tokens |
 | **Storage** | Supabase Storage | Private bucket for audio |
 | **LLM** | OpenAI GPT-4o-mini | Structured outputs, function calling |
 | **STT** | OpenAI Whisper | Polish + multilingual |
@@ -86,7 +86,7 @@ Users speak their memories naturally. The system transcribes, asks intelligent f
 
 The PWA follows a linear user flow designed for minimal cognitive load:
 
-1. **Login** — Email input, magic link sent via Supabase Auth
+1. **Login** — Email input, magic link sent via Firebase Auth (or Google sign-in)
 2. **Onboarding** — Capture name, birth date, country of origin, and relatives
 3. **Timeline** — Chronological view of all life events; tap to explore, tap + to add
 4. **Recording** — Large record button, real-time audio visualization, automatic upload
@@ -181,9 +181,9 @@ Run the SQL migrations in `supabase/migrations/` against your Supabase project.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
-| `SUPABASE_JWT_SECRET` | Yes | JWT secret for token validation |
+| `FIREBASE_CREDENTIALS` | Yes | Firebase service account JSON (escaped string) |
+| `FIREBASE_PROJECT_ID` | Yes | Firebase project ID |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `OPENAI_MODEL` | No | LLM model (default: `gpt-4o-mini`) |
 | `TTS_MODEL` | No | TTS model (default: `gpt-4o-mini-tts`) |
@@ -202,9 +202,12 @@ Run the SQL migrations in `supabase/migrations/` against your Supabase project.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_SUPABASE_URL` | Yes | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `VITE_FIREBASE_API_KEY` | Yes | Firebase API key |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Yes | Firebase auth domain |
+| `VITE_FIREBASE_PROJECT_ID` | Yes | Firebase project ID |
+| `VITE_FIREBASE_APP_ID` | Yes | Firebase app ID |
 | `VITE_API_URL` | No | Backend URL (default: `http://localhost:8000`) |
+| `VITE_SUPABASE_URL` | No | Supabase URL (for storage fallback) |
 
 ---
 
@@ -274,7 +277,7 @@ This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned impro
 | **Push notifications** | Not implemented | Reminders to continue a story, weekly memory prompts |
 | **Contextual enrichment** | User-provided context only | Wikipedia integration for historical facts matching event dates (world + Poland) |
 | **Map integration** | Places stored but not visualized | Interactive map of life events |
-| **Multi-language** | Polish first, English for demo | Full i18n with user language selection |
+| **Multi-language** | Polish + English (188 keys) | Full i18n with user language selection |
 | **Accessibility** | Large text/buttons, voice-first | Screen reader optimization, high contrast mode |
 | **Audio storage** | Supabase Storage private bucket | Compression, lifecycle policies, CDN delivery |
 | **Evaluation** | 10% sample rate, async | Real-time quality gates, A/B testing for prompts |
