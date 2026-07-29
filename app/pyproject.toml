@@ -11,7 +11,8 @@ dependencies = [
     "structlog>=24.0.0",
     "httpx>=0.27.0",
     "python-multipart>=0.0.12",
-    "supabase>=2.0.0",
+    "asyncpg>=0.30",
+    "aiofiles>=24.1.0",
     "python-dotenv>=1.0.0",
     "python-jose[cryptography]>=3.3.0",
     "ruff>=0.15.10",
@@ -36,6 +37,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 
+[tool.setuptools.packages.find]
+include = ["api*", "db*", "services*", "utils*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
@@ -46,10 +50,6 @@ ignore = ["W291"]  # Trailing whitespace (unavoidable in multi-line f-strings)
 
 [tool.mypy]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "supabase.*"
-ignore_all_errors = true
 
 [[tool.mypy.overrides]]
 module = "api.routes.*"

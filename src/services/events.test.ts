@@ -14,16 +14,6 @@ import { createFetchMock, createErrorResponse, mockFetch } from '../test/fetch-m
 
 vi.stubGlobal('fetch', mockFetch)
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { access_token: 'mock-token' } },
-      }),
-    },
-  },
-}))
-
 describe('events service', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -5,7 +5,7 @@ from api.rate_limit_config import limiter
 from api.routes import events, interview, tts, users, evaluations
 from api.sentry_config import init_sentry
 from config import get_settings
-from db.client import get_supabase_client
+from db.client import init_pool, close_pool, get_pool
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -38,16 +38,15 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for deployment verification."""
     return {"status": "ok"}
 
 
 async def _check_db_health():
-    """Shared helper to verify database connectivity."""
-    supabase = await get_supabase_client()
+    pool = await get_pool()
     try:
-        result = supabase.table("users").select("count", count="exact").execute()
-        return {"status": "connected", "user_count": result.count}
+        async with pool.acquire() as conn:
+            result = await conn.fetchval("SELECT COUNT(*) FROM users")
+            return {"status": "connected", "user_count": result}
     except Exception as e:
         logger.error("db_check_failed", error=str(e))
         return {"status": "error", "error": str(e)}
@@ -55,7 +54,6 @@ async def _check_db_health():
 
 @app.get("/health/ready")
 async def health_ready_check():
-    """Readiness check including database connectivity."""
     result = await _check_db_health()
     if result["status"] == "connected":
         return {
@@ -68,7 +66,6 @@ async def health_ready_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint returning app info."""
     return {
         "name": "Life Story Preservation Agent",
         "version": "0.1.0",
@@ -78,13 +75,11 @@ async def root():
 
 @app.get("/db-check")
 async def db_check():
-    """Verify database connectivity."""
     return await _check_db_health()
 
 
 @app.get("/auth/me")
 async def get_me(current_user: CurrentUser = Depends(get_current_user)):
-    """Get current authenticated user."""
     return {"id": str(current_user.id), "email": current_user.email}
 
 
@@ -97,9 +92,16 @@ app.include_router(evaluations.router)
 
 @app.on_event("startup")
 async def startup():
-    """Log application startup and init Sentry/LangFuse/Firebase."""
     init_sentry()
     init_langfuse()
+
+    if settings.database_url:
+        try:
+            await init_pool(settings.database_url)
+            app.state.pool = await get_pool()
+            logger.info("database_pool_initialized")
+        except Exception as e:
+            logger.error("database_pool_init_failed", error=str(e))
 
     from services.firebase_auth import init_firebase
     if settings.firebase_credentials:
@@ -118,7 +120,6 @@ async def startup():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Capture unhandled exceptions with Sentry."""
     from api.sentry_config import capture_exception
     capture_exception(exc, path=str(request.url.path))
     logger.error("unhandled_exception", error=str(exc), path=str(request.url.path))
@@ -130,5 +131,5 @@ async def global_exception_handler(request, exc):
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Log application shutdown."""
+    await close_pool()
     logger.info("application_shutdown")

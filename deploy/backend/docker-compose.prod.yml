@@ -1,0 +1,27 @@
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"        # loopback only — not publicly exposed
+
+  backend:
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "127.0.0.1:8000:8000"        # loopback only — Caddy proxies to it
+    environment:
+      CORS_ORIGINS: https://www.lifestoryagent.uk
+      ENVIRONMENT: production
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    network_mode: host               # binds :20146 directly on host (IPv6 + IPv4)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend]
+
+volumes:
+  caddy_data:
+  caddy_config:

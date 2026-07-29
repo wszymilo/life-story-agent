@@ -3,15 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { AuthProvider, useAuth as useAuthContext } from '../context/AuthContext'
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-    },
-  },
-}))
-
 vi.mock('../services/user', () => ({
   getUserProfile: vi.fn().mockResolvedValue(null),
   isProfileComplete: vi.fn(),

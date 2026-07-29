@@ -1,12 +1,11 @@
-"""Evaluation service using LLM-as-judge."""
-
 import random
 
 from api.langfuse_config import log_score
 from api.logging_config import get_logger
 from api.schemas.evaluation import EvaluationScores, QuestionEvaluationScores
 from config import get_settings
-from db.client import get_supabase_client
+from db.client import get_pool
+from db.repositories import EvaluationRepository
 from fastapi import BackgroundTasks
 from openai import AsyncOpenAI
 
@@ -21,10 +20,6 @@ async def evaluate_output(
     summary_text: str,
     eval_type: str = "summary",
 ) -> EvaluationScores | None:
-    """Evaluate summary quality using LLM as judge.
-
-    Returns structured scores or None if evaluation fails.
-    """
     if not settings.openai_api_key:
         logger.warning("eval_skipped_no_api_key")
         return None
@@ -84,10 +79,6 @@ async def evaluate_question(
     question_text: str,
     existing_questions: list[str],
 ) -> QuestionEvaluationScores | None:
-    """Evaluate follow-up question quality using LLM as judge.
-
-    Returns structured scores or None if evaluation fails.
-    """
     if not settings.openai_api_key:
         logger.warning("question_eval_skipped_no_api_key")
         return None
@@ -146,7 +137,6 @@ Provide your ratings as structured output.
 
 
 def should_evaluate() -> bool:
-    """Determine if this output should be evaluated (based on sample rate)."""
     if not settings.eval_enabled:
         return False
     return random.random() < settings.eval_sample_rate
@@ -160,7 +150,6 @@ def evaluate_in_background(
     summary_text: str,
     trace_id: str | None = None,
 ) -> None:
-    """Schedule evaluation to run in the background without blocking."""
     background_tasks.add_task(
         _evaluate_and_store, event_id, eval_type, prompt_text, summary_text, trace_id
     )
@@ -174,7 +163,6 @@ def evaluate_question_in_background(
     existing_questions: list[str],
     trace_id: str | None = None,
 ) -> None:
-    """Schedule question evaluation to run in the background without blocking."""
     background_tasks.add_task(
         _evaluate_question_and_store, event_id, transcript, question_text, existing_questions, trace_id
     )
@@ -187,11 +175,9 @@ async def _evaluate_and_store(
     summary_text: str,
     trace_id: str | None = None,
 ) -> None:
-    """Internal: evaluate and store scores in database (content-free)."""
     result = await evaluate_output(prompt_text, summary_text, eval_type)
     if not result:
         return
-
     await _store_scores(event_id, eval_type, result, trace_id)
 
 
@@ -202,11 +188,9 @@ async def _evaluate_question_and_store(
     existing_questions: list[str],
     trace_id: str | None = None,
 ) -> None:
-    """Internal: evaluate question and store scores in database (content-free)."""
     result = await evaluate_question(transcript, question_text, existing_questions)
     if not result:
         return
-
     await _store_question_scores(event_id, result, trace_id)
 
 
@@ -216,11 +200,10 @@ async def _store_scores(
     result: EvaluationScores,
     trace_id: str | None = None,
 ) -> None:
-    """Store evaluation scores (no content) and log to LangFuse."""
-    supabase = await get_supabase_client()
-
     try:
-        supabase.table("evaluation_results").insert({
+        pool = await get_pool()
+        repo = EvaluationRepository(pool)
+        await repo.insert({
             "event_id": event_id,
             "eval_type": eval_type,
             "factual_accuracy": result.factual_accuracy,
@@ -228,12 +211,11 @@ async def _store_scores(
             "completeness": result.completeness,
             "overall_score": result.overall_score,
             "evaluator_model": settings.openai_model,
-        }).execute()
+        })
         logger.info("eval_stored", event_id=event_id, eval_type=eval_type)
     except Exception as e:
         logger.error("eval_store_failed", error=str(e))
 
-    # Log scores to LangFuse trace
     if trace_id:
         log_score(trace_id, "factual_accuracy", result.factual_accuracy or 0, f"eval_type={eval_type}")
         log_score(trace_id, "coherence", result.coherence or 0, f"eval_type={eval_type}")
@@ -246,11 +228,10 @@ async def _store_question_scores(
     result: QuestionEvaluationScores,
     trace_id: str | None = None,
 ) -> None:
-    """Store question evaluation scores (no content) and log to LangFuse."""
-    supabase = await get_supabase_client()
-
     try:
-        supabase.table("evaluation_results").insert({
+        pool = await get_pool()
+        repo = EvaluationRepository(pool)
+        await repo.insert({
             "event_id": event_id,
             "eval_type": "question",
             "factual_accuracy": result.relevance,
@@ -258,12 +239,11 @@ async def _store_question_scores(
             "completeness": result.open_endedness,
             "overall_score": result.overall_score,
             "evaluator_model": settings.openai_model,
-        }).execute()
+        })
         logger.info("question_eval_stored", event_id=event_id)
     except Exception as e:
         logger.error("question_eval_store_failed", error=str(e))
 
-    # Log question quality scores to LangFuse trace
     if trace_id:
         log_score(trace_id, "question_relevance", result.relevance or 0)
         log_score(trace_id, "question_specificity", result.specificity or 0)
@@ -278,5 +258,4 @@ async def store_evaluation_scores(
     eval_type: str,
     scores: EvaluationScores,
 ) -> None:
-    """Store pre-computed evaluation scores (used by meta-story flow)."""
     await _store_scores(event_id, eval_type, scores)

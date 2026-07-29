@@ -33,6 +33,16 @@ build/
 .vercel
 *.tsbuildinfo
 supabase/.temp/
-certs/
+certs*/
 
 /plan.md
+
+# Docker volumes (local data)
+pgdata/
+audio-data/
+
+# Test seed data (not committed)
+deploy/backend/init-test-data.sql
+
+# Origin TLS certs (Cloudflare Origin CA) — never commit
+deploy/backend/certs/

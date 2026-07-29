@@ -13,7 +13,6 @@
     "test:run": "vitest --run"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.3",
     "firebase": "^12.12.1",
     "i18next": "^26.0.8",
     "i18next-browser-languagedetector": "^8.2.1",

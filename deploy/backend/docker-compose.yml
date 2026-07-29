@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../deploy/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: life_story_agent
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d life_story_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - audio-data:/data/audio-recordings
+      # Bind mount source code (not .venv) for hot-reload
+      - ../../app/api:/app/api:ro
+      - ../../app/config.py:/app/config.py:ro
+      - ../../app/db:/app/db:ro
+      - ../../app/main.py:/app/main.py:ro
+      - ../../app/services:/app/services:ro
+      - ../../app/utils:/app/utils:ro
+      # Mount root .env so config.py's load_dotenv(find_dotenv()) finds it
+      - ../../.env:/app/.env:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql://app:${DB_PASSWORD:-devpassword}@postgres:5432/life_story_agent
+      AUDIO_STORAGE_PATH: /data/audio-recordings
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+
+volumes:
+  pgdata:
+  audio-data:

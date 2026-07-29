@@ -1,14 +1,14 @@
-"""Evaluation routes for dashboard."""
-
 from api.deps import CurrentUser, get_current_user
 from api.logging_config import get_logger
 from api.schemas.evaluation import (
     DashboardStats,
     EvaluationResultResponse,
     EvaluationScoresStore,
+    EvaluationScores,
 )
 from config import get_settings
-from db.client import get_supabase_client
+from db.deps import get_evaluation_repo
+from db.repositories import EvaluationRepository
 from fastapi import APIRouter, Depends, HTTPException
 from services.evaluation import store_evaluation_scores
 
@@ -21,25 +21,14 @@ settings = get_settings()
 async def get_dashboard(
     eval_type: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
+    evaluation_repo: EvaluationRepository = Depends(get_evaluation_repo),
 ):
-    """Get evaluation dashboard statistics (admin only).
-
-    Args:
-        eval_type: Optional filter by evaluation type (summary, meta_story, question).
-                   Defaults to all types.
-    """
     if current_user.email != settings.admin_email:
         raise HTTPException(403, "Admin access only")
 
-    supabase = await get_supabase_client()
+    results = await evaluation_repo.fetch_recent(eval_type, limit=10)
 
-    query = supabase.table("evaluation_results").select("*")
-    if eval_type:
-        query = query.eq("eval_type", eval_type)
-
-    results = query.order("created_at", desc=True).limit(10).execute()
-
-    if not results.data:
+    if not results:
         return DashboardStats(
             total_evaluations=0,
             avg_factual_accuracy=None,
@@ -49,23 +38,19 @@ async def get_dashboard(
             recent_evaluations=[],
         )
 
-    recent = [EvaluationResultResponse.from_row(r) for r in results.data]
+    recent = [EvaluationResultResponse(**r) for r in results]
 
-    total = len(results.data)
+    total = len(results)
 
-    avg_factual = sum(r.get("factual_accuracy", 0) for r in results.data if r.get("factual_accuracy")) / total if total > 0 else None
-    avg_coherence = sum(r.get("coherence", 0) for r in results.data if r.get("coherence")) / total if total > 0 else None
-    avg_completeness = sum(r.get("completeness", 0) for r in results.data if r.get("completeness")) / total if total > 0 else None
-    avg_overall = sum(r.get("overall_score", 0) for r in results.data if r.get("overall_score")) / total if total > 0 else None
+    avg_factual = sum(r.get("factual_accuracy", 0) for r in results if r.get("factual_accuracy")) / total if total > 0 else None
+    avg_coherence = sum(r.get("coherence", 0) for r in results if r.get("coherence")) / total if total > 0 else None
+    avg_completeness = sum(r.get("completeness", 0) for r in results if r.get("completeness")) / total if total > 0 else None
+    avg_overall = sum(r.get("overall_score", 0) for r in results if r.get("overall_score")) / total if total > 0 else None
 
-    count_query = supabase.table("evaluation_results").select("count", count="exact")
-    if eval_type:
-        count_query = count_query.eq("eval_type", eval_type)
-    count_result = count_query.execute()
-    total_count = count_result.count or 0
+    total_count = await evaluation_repo.count(eval_type)
 
     return DashboardStats(
-        total_evaluations=total_count,
+        total_evaluations=total_count or 0,
         avg_factual_accuracy=round(avg_factual, 1) if avg_factual else None,
         avg_coherence=round(avg_coherence, 1) if avg_coherence else None,
         avg_completeness=round(avg_completeness, 1) if avg_completeness else None,
@@ -79,13 +64,6 @@ async def store_scores(
     data: EvaluationScoresStore,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Store pre-computed evaluation scores (content-free).
-
-    Used by meta-story flow where evaluation runs during generation
-    and scores are stored after the event is created.
-    """
-    from api.schemas.evaluation import EvaluationScores
-
     scores = EvaluationScores(
         factual_accuracy=data.factual_accuracy,
         coherence=data.coherence,
