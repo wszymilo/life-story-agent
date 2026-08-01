@@ -1,7 +1,6 @@
 import io
 import time
 
-import httpx
 from api.langfuse_config import report_generation_usage
 from api.logging_config import get_logger
 from langfuse import observe
@@ -15,28 +14,17 @@ logger = get_logger()
 
 
 async def transcribe_audio_url(
-    audio_url: str,
+    audio_path: str,
     language: str = "pl",
 ) -> str:
-    """Transcribe audio from URL using OpenAI Whisper API."""
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY not configured")
 
-    logger.debug("transcription_url_start", audio_url=audio_url, language=language)
+    logger.debug("transcription_path_start", audio_path=audio_path, language=language)
 
-    # Check if this is a Supabase Storage URL (private bucket scenario)
-    if "/storage/v1/object/" in audio_url:
-        storage = StorageService()
-        audio_content = await storage.download(audio_url)
-        logger.debug("transcription_downloaded", size_bytes=len(audio_content))
-        return await transcribe_audio_data(audio_content, language)
-
-    # Fallback: try direct HTTP download for non-Supabase URLs
-    async with httpx.AsyncClient() as client:
-        response = await client.get(audio_url)
-        response.raise_for_status()
-        audio_content = response.content
-
+    storage = StorageService()
+    audio_content = await storage.download(audio_path)
+    logger.debug("transcription_downloaded", size_bytes=len(audio_content))
     return await transcribe_audio_data(audio_content, language)
 
 
@@ -75,7 +63,6 @@ async def transcribe_audio_data(
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        # Whisper returns string when response_format="text"
         if isinstance(result, str):
             transcript = result
         else:

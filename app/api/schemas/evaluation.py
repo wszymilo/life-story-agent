@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -29,7 +30,7 @@ class QuestionEvaluationScores(BaseModel):
 class EvaluationScoresStore(BaseModel):
     """Input for storing pre-computed evaluation scores."""
 
-    event_id: str
+    event_id: uuid.UUID
     eval_type: str
     factual_accuracy: int = Field(ge=1, le=5)
     coherence: int = Field(ge=1, le=5)
@@ -40,8 +41,8 @@ class EvaluationScoresStore(BaseModel):
 class EvaluationResultResponse(BaseModel):
     """Response for evaluation result (scores only)."""
 
-    id: str
-    event_id: str
+    id: uuid.UUID
+    event_id: uuid.UUID
     eval_type: str
     factual_accuracy: Optional[int]
     coherence: Optional[int]
@@ -51,21 +52,6 @@ class EvaluationResultResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
-
-    @classmethod
-    def from_row(cls, row: dict) -> "EvaluationResultResponse":
-        """Create an EvaluationResultResponse from a Supabase row dict."""
-        return cls(
-            id=row["id"],
-            event_id=row["event_id"],
-            eval_type=row["eval_type"],
-            factual_accuracy=row.get("factual_accuracy"),
-            coherence=row.get("coherence"),
-            completeness=row.get("completeness"),
-            overall_score=row.get("overall_score"),
-            evaluator_model=row.get("evaluator_model", "gpt-4o"),
-            created_at=row["created_at"],
-        )
 
 
 class DashboardStats(BaseModel):

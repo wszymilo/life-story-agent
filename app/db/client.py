@@ -1,21 +1,20 @@
+import asyncpg
 
-from config import get_settings
-from supabase.lib.client_options import SyncClientOptions
-
-from supabase import AsyncClient, Client, create_client
-
-settings = get_settings()
+pool: asyncpg.Pool | None = None
 
 
-def create_storage_client(timeout: int | float = 120) -> Client:
-    """Create a Supabase client with custom storage timeout."""
-    return create_client(
-        settings.supabase_url,
-        settings.supabase_service_key,
-        options=SyncClientOptions(storage_client_timeout=timeout),
-    )
+async def init_pool(dsn: str) -> None:
+    global pool
+    pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
 
 
-async def get_supabase_client() -> AsyncClient:
-    """Get async Supabase client for database operations."""
-    return create_client(settings.supabase_url, settings.supabase_service_key)
+async def close_pool() -> None:
+    global pool
+    if pool:
+        await pool.close()
+        pool = None
+
+
+async def get_pool() -> asyncpg.Pool:
+    assert pool is not None, "Database pool not initialized"
+    return pool

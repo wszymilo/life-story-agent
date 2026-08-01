@@ -1,10 +1,7 @@
 from typing import Any
 
 from api.logging_config import get_logger
-from api.utils import (
-    get_event_for_user,
-    get_user_language,
-)
+from db.repositories import EventRepository, UserRepository
 from fastapi import HTTPException, status
 from services.summary_generator import generate_summary
 
@@ -12,33 +9,27 @@ logger = get_logger()
 
 
 async def complete_event_session(
-    supabase: Any,
+    event_repo: EventRepository,
+    user_repo: UserRepository,
     event_id: str,
     user_id: str,
     transcripts: list[str],
     questions_and_answers: list[dict[str, str]],
 ) -> dict[str, Any]:
-    """Complete an event session: generate summary from plaintext, return result.
+    event = await event_repo.fetch_by_id(event_id, user_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
-    Args:
-        transcripts: Decrypted transcripts from client.
-        questions_and_answers: Decrypted Q&A from client.
-
-    Returns:
-        Dict with id, title, summary, status (plaintext — client encrypts before storage).
-    """
-    # Verify ownership
-    event = await get_event_for_user(supabase, event_id, user_id)
-
-    # Check if already completed
     if event.get("status") == "complete":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Event is already completed",
         )
 
-    # Generate summary from client-provided plaintext
-    user_language = await get_user_language(supabase, user_id)
+    user_language = await user_repo.fetch_language(user_id)
 
     try:
         summary_result = await generate_summary(
@@ -51,10 +42,6 @@ async def complete_event_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Summary generation failed: {str(e)}",
         )
-
-    # Wire evaluation during plaintext phase
-    # Note: BackgroundTasks is not available here directly;
-    # evaluation will be triggered by the route handler after this returns.
 
     return {
         "id": event_id,

@@ -1,24 +1,14 @@
 name: CI
 
 on:
-  push:
-    branches: ['**']
-  pull_request:
-    branches: ['**']
-  workflow_dispatch:
+  push:          # tests on all branches
+  pull_request:  # tests on all PRs
 
 jobs:
   backend:
     runs-on: ubuntu-latest
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ENVIRONMENT: production
-      LOG_LEVEL: info
-      CORS_ORIGINS: https://*.vercel.app
     steps:
       - uses: actions/checkout@v4
 
@@ -30,22 +20,23 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: cd app && uv sync
+        working-directory: app
+        run: uv sync
 
       - name: Lint
-        run: cd app && uv run ruff check .
+        working-directory: app
+        run: uv run ruff check .
 
       - name: Type check
-        run: cd app && uv run mypy main.py --ignore-missing-imports --no-error-summary || true
+        working-directory: app
+        run: uv run mypy main.py --ignore-missing-imports --no-error-summary || true
 
       - name: Tests
-        run: cd app && uv run pytest
+        working-directory: app
+        run: uv run pytest
 
   frontend:
     runs-on: ubuntu-latest
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,3 +59,23 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  deploy:
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /home/lsa/life-story-agent
+            git pull
+            docker compose --env-file .env \
+                           -f deploy/backend/docker-compose.yml \
+                           -f deploy/backend/docker-compose.prod.yml \
+                           up -d --build

@@ -5,13 +5,8 @@ from api.langfuse_config import story_trace_context
 from api.logging_config import get_logger
 from api.rate_limit_config import limiter
 from api.schemas.event import AnalyzeRequest, FollowUpRequest, QuestionCreateRequest
-from api.utils import (
-    get_event_for_user,
-    get_next_sequence_order,
-    get_user_language,
-    require_data,
-)
-from db.client import get_supabase_client
+from db.deps import get_event_repo, get_recording_repo, get_user_repo
+from db.repositories import EventRepository, RecordingRepository, UserRepository
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from services.interview_agent import analyze_transcript, generate_follow_up_question
 from utils.date_parser import parse_date
@@ -27,16 +22,20 @@ async def analyze_event_transcript(
     event_id: uuid.UUID,
     body: AnalyzeRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Analyze a plaintext transcript to extract time, place, people, and themes."""
     event_id_str = str(event_id)
     user_id_str = str(current_user.id)
 
     logger.info("analyze_transcript_endpoint", event_id=event_id_str)
 
-    supabase = await get_supabase_client()
-
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    event = await event_repo.fetch_by_id(event_id_str, user_id_str)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
     if not body.transcript.strip():
         logger.warning("analyze_transcript_empty", event_id=event_id_str)
@@ -45,19 +44,8 @@ async def analyze_event_transcript(
             detail="Transcript is empty",
         )
 
-    # Get user's preferred language
-    user_language = await get_user_language(supabase, user_id_str)
-
-    # Fetch existing trace_id for this story session
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", event_id_str)
-        .execute()
-    )
-    trace_id = None
-    if event_response.data:
-        trace_id = event_response.data[0].get("trace_id")
+    user_language = await user_repo.fetch_language(user_id_str)
+    trace_id = await event_repo.fetch_trace_id(event_id_str)
 
     try:
         with story_trace_context(trace_id, user_id_str):
@@ -76,14 +64,14 @@ async def analyze_event_transcript(
     if analysis.extracted_time:
         parsed_date = parse_date(analysis.extracted_time)
         if parsed_date:
-            update_data["time_anchor_date"] = parsed_date.isoformat()
+            update_data["time_anchor_date"] = parsed_date
             update_data["time_anchor"] = analysis.extracted_time
 
     if analysis.extracted_place:
         update_data["place"] = analysis.extracted_place
 
     if update_data:
-        supabase.table("events").update(update_data).eq("id", event_id_str).execute()
+        await event_repo.update(event_id_str, update_data)
         logger.info("analyze_transcript_updated_event", event_id=event_id_str, updates=list(update_data.keys()))
 
     result = {
@@ -108,16 +96,20 @@ async def generate_follow_up(
     body: FollowUpRequest,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Generate a follow-up question from a plaintext transcript."""
     event_id_str = str(event_id)
     user_id_str = str(current_user.id)
 
     logger.info("generate_follow_up_endpoint", event_id=event_id_str)
 
-    supabase = await get_supabase_client()
-
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    event = await event_repo.fetch_by_id(event_id_str, user_id_str)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
     if not body.transcript.strip():
         logger.warning("generate_follow_up_empty", event_id=event_id_str)
@@ -126,19 +118,8 @@ async def generate_follow_up(
             detail="Transcript is empty",
         )
 
-    # Get user's preferred language
-    user_language = await get_user_language(supabase, user_id_str)
-
-    # Fetch existing trace_id for this story session
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", event_id_str)
-        .execute()
-    )
-    trace_id = None
-    if event_response.data:
-        trace_id = event_response.data[0].get("trace_id")
+    user_language = await user_repo.fetch_language(user_id_str)
+    trace_id = await event_repo.fetch_trace_id(event_id_str)
 
     try:
         with story_trace_context(trace_id, user_id_str):
@@ -154,7 +135,6 @@ async def generate_follow_up(
             detail=str(e),
         )
 
-    # Trigger question quality evaluation (sampled)
     from services.evaluation import evaluate_question_in_background, should_evaluate
     if should_evaluate():
         evaluate_question_in_background(
@@ -178,17 +158,22 @@ async def create_question(
     event_id: uuid.UUID,
     body: QuestionCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
-    """Store an encrypted follow-up question."""
     event_id_str = str(event_id)
     user_id_str = str(current_user.id)
 
-    supabase = await get_supabase_client()
-    await get_event_for_user(supabase, event_id_str, user_id_str)
+    event = await event_repo.fetch_by_id(event_id_str, user_id_str)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
-    supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).eq("was_answered", False).execute()
+    await recording_repo.delete_unanswered(event_id_str)
 
-    sequence_order = get_next_sequence_order(supabase, "follow_up_questions", event_id_str)
+    sequence_order = await recording_repo.next_sequence_order("follow_up_questions", event_id_str)
 
     question_data = {
         "event_id": event_id_str,
@@ -197,14 +182,12 @@ async def create_question(
         "was_answered": False,
     }
 
-    result = supabase.table("follow_up_questions").insert(question_data).execute()
-    require_data(result, "Failed to create question")
+    result = await recording_repo.insert_question(question_data)
 
     return {
-        "id": result.data[0]["id"],
+        "id": result["id"],
         "question_text": body.question_text,
         "sequence_order": sequence_order,
         "was_answered": False,
-        "created_at": result.data[0]["created_at"],
+        "created_at": result["created_at"],
     }
-

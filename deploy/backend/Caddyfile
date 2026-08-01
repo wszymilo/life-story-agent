@@ -1,0 +1,4 @@
+xapi.lifestoryagent.uk:20146 {
+    tls /etc/caddy/certs/fullchain.pem /etc/caddy/certs/privkey.pem
+    reverse_proxy localhost:8000
+}

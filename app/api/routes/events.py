@@ -22,13 +22,11 @@ from api.schemas.event import (
     TranscriptUpdateRequest,
 )
 from api.utils import (
-    get_event_for_user,
-    get_user_language,
-    require_data,
     serialize_update_data,
 )
 from config import get_settings
-from db.client import get_supabase_client
+from db.deps import get_evaluation_repo, get_event_repo, get_recording_repo, get_user_repo
+from db.repositories import EventRepository, RecordingRepository, UserRepository, EvaluationRepository
 from services.storage import StorageService
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
@@ -44,23 +42,16 @@ MAX_FILE_SIZE_MB = 25
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 
-async def get_event_with_recordings(request: Request, event_id: uuid.UUID):
-    supabase = await get_supabase_client()
-
-    event_response = (
-        supabase.table("events").select("*").eq("id", str(event_id)).execute()
-    )
-    event_data = require_data(event_response, "Event not found")
-
-    recordings_response = (
-        supabase.table("audio_recordings")
-        .select("*")
-        .eq("event_id", str(event_id))
-        .order("sequence_order")
-        .execute()
-    )
-
-    return event_data, recordings_response.data
+async def _require_event(
+    event_repo: EventRepository,
+    event_id: str,
+    user_id: str,
+) -> dict:
+    """Fetch an event owned by user_id or raise 404 (no cross-user access)."""
+    event = await event_repo.fetch_by_id(event_id, user_id)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return event
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -68,46 +59,29 @@ async def create_event(
     request: Request,
     event: EventCreate,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
 ):
-    """Create a new event."""
-    supabase = await get_supabase_client()
-
     event_data = {
         "user_id": str(current_user.id),
         "title": event.title,
         "time_anchor": event.time_anchor,
-        "time_anchor_date": event.time_anchor_date.isoformat()
+        "time_anchor_date": event.time_anchor_date
         if event.time_anchor_date
         else None,
         "place": event.place,
         "status": "draft",
         "trace_id": create_trace_id(),
     }
-
-    response = supabase.table("events").insert(event_data).execute()
-    require_data(response, "Failed to create event")
-
-    return response.data[0]
+    return await event_repo.create(event_data)
 
 
 @router.get("", response_model=list[EventResponse])
 async def list_events(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
 ):
-    """List all events for user sorted by time_anchor_date."""
-    supabase = await get_supabase_client()
-
-    response = (
-        supabase.table("events")
-        .select("*")
-        .eq("user_id", str(current_user.id))
-        .order("time_anchor_date", desc=False)
-        .order("created_at", desc=False)
-        .execute()
-    )
-
-    return response.data
+    return await event_repo.fetch_all_by_user(str(current_user.id))
 
 
 @router.get("/{event_id}", response_model=EventWithRecordingsResponse)
@@ -115,10 +89,15 @@ async def get_event(
     request: Request,
     event_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
-    """Get an event by ID with recordings."""
     logger.info("get_event_request", event_id=str(event_id), user_id=str(current_user.id), method=request.method)
-    event_data, recordings = await get_event_with_recordings(request, event_id)
+    event_id_str = str(event_id)
+    event_data = await event_repo.fetch_by_id(event_id_str, str(current_user.id))
+    if not event_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    recordings = await recording_repo.fetch_by_event(event_id_str)
     logger.info("get_event_response", event_id=str(event_id), recordings_count=len(recordings))
     return {**event_data, "recordings": recordings}
 
@@ -129,26 +108,21 @@ async def update_event(
     event_id: uuid.UUID,
     event_update: EventUpdate,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
-    """Update an event."""
-    supabase = await get_supabase_client()
+    await _require_event(event_repo, str(event_id), str(current_user.id))
 
     update_data = event_update.model_dump(exclude_unset=True)
     if not update_data:
-        event_data, _ = await get_event_with_recordings(request, event_id)
-        return event_data
+        event_data = await event_repo.fetch_by_id(str(event_id), str(current_user.id))
+        recordings = await recording_repo.fetch_by_event(str(event_id))
+        return {**event_data, "recordings": recordings}
 
     serialize_update_data(update_data)
-
-    response = (
-        supabase.table("events")
-        .update(update_data)
-        .eq("id", str(event_id))
-        .execute()
-    )
-    require_data(response, "Event not found")
-
-    return response.data[0]
+    await event_repo.update(str(event_id), update_data)
+    event_data = await event_repo.fetch_by_id(str(event_id), str(current_user.id))
+    return event_data
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -156,31 +130,24 @@ async def delete_event(
     request: Request,
     event_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
+    event_repo: EventRepository = Depends(get_event_repo),
+    evaluation_repo: EvaluationRepository = Depends(get_evaluation_repo),
 ):
-    """Delete event and cascade delete recordings/questions/audio files."""
-    supabase = await get_supabase_client()
     event_id_str = str(event_id)
 
-    recordings_response = (
-        supabase.table("audio_recordings")
-        .select("audio_url")
-        .eq("event_id", event_id_str)
-        .execute()
-    )
-    recordings = recordings_response.data if recordings_response.data else []
+    await _require_event(event_repo, event_id_str, str(current_user.id))
 
-    audio_urls = [r["audio_url"] for r in recordings if r.get("audio_url")]
-    if audio_urls:
+    audio_paths = await recording_repo.fetch_urls_by_event(event_id_str)
+    if audio_paths:
         try:
             storage = StorageService()
-            await storage.remove_many(audio_urls)
+            await storage.remove_many(audio_paths)
         except Exception:
             pass
 
-    supabase.table("evaluation_results").delete().eq("event_id", event_id_str).execute()
-    supabase.table("audio_recordings").delete().eq("event_id", event_id_str).execute()
-    supabase.table("follow_up_questions").delete().eq("event_id", event_id_str).execute()
-    supabase.table("events").delete().eq("id", event_id_str).execute()
+    await evaluation_repo.delete_for_event(event_id_str)
+    await event_repo.delete(event_id_str)
 
     return {"status": "deleted", "event_id": event_id_str}
 
@@ -190,10 +157,11 @@ async def get_event_recordings(
     request: Request,
     event_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
-    """Get all recordings for an event."""
-    _, recordings = await get_event_with_recordings(request, event_id)
-    return recordings
+    await _require_event(event_repo, str(event_id), str(current_user.id))
+    return await recording_repo.fetch_by_event(str(event_id))
 
 
 @router.get("/{event_id}/recordings/{recording_id}/audio")
@@ -202,35 +170,18 @@ async def stream_recording_audio(
     event_id: uuid.UUID,
     recording_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
+    event_repo: EventRepository = Depends(get_event_repo),
 ):
-    """Stream audio file for a recording."""
-    supabase = await get_supabase_client()
-
-    event = await get_event_for_user(supabase, str(event_id), str(current_user.id))
+    event = await event_repo.fetch_by_id(str(event_id), str(current_user.id))
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
         )
 
-    recording_response = (
-        supabase.table("audio_recordings")
-        .select("audio_url")
-        .eq("id", str(recording_id))
-        .eq("event_id", str(event_id))
-        .execute()
-    )
-
-    if not recording_response.data or len(recording_response.data) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Recording not found",
-        )
-
-    recording = recording_response.data[0]
-    audio_url = recording.get("audio_url")
-
-    if not audio_url:
+    audio_path = await recording_repo.fetch_url(str(recording_id), str(event_id))
+    if not audio_path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Audio file not found",
@@ -238,7 +189,7 @@ async def stream_recording_audio(
 
     try:
         storage = StorageService()
-        audio_data = await storage.download(audio_url)
+        audio_data = await storage.download(audio_path)
     except HTTPException:
         raise
     except Exception as e:
@@ -266,26 +217,20 @@ async def add_recording(
     recording_type: str = Form("initial_story"),
     duration_seconds: Optional[float] = Form(None),
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Add a recording to an event. Accepts audio file via multipart/form-data."""
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
-    supabase = await get_supabase_client()
+    await _require_event(event_repo, str(event_id), str(current_user.id))
 
-    # Fetch existing trace_id for this story
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", str(event_id))
-        .execute()
-    )
-    trace_id = None
-    if event_response.data:
-        trace_id = event_response.data[0].get("trace_id")
+    trace_id = await event_repo.fetch_trace_id(str(event_id))
 
     with story_trace_context(trace_id, str(current_user.id)):
         result = await add_recording_to_event(
-            supabase=supabase,
+            recording_repo=recording_repo,
+            user_repo=user_repo,
             event_id=str(event_id),
             user_id=str(current_user.id),
             file=file,
@@ -303,56 +248,34 @@ async def retry_transcribe(
     request: Request,
     recording_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
+    event_repo: EventRepository = Depends(get_event_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Retry transcription for an existing recording."""
-    supabase = await get_supabase_client()
-
-    recording_response = (
-        supabase.table("audio_recordings")
-        .select("*")
-        .eq("id", str(recording_id))
-        .execute()
-    )
-
-    # Handle edge case where response.data exists but is not a list
-    if not recording_response.data:
+    recording = await recording_repo.fetch_by_id(str(recording_id))
+    if not recording:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recording not found",
         )
 
-    if not isinstance(recording_response.data, list) or len(recording_response.data) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Recording not found",
-        )
+    await _require_event(event_repo, recording["event_id"], str(current_user.id))
 
-    recording = recording_response.data[0]
-
-    if not recording.get("audio_url"):
+    audio_path = recording.get("audio_url")
+    if not audio_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Recording has no audio file",
         )
 
-    # Get user's preferred language for transcription
-    user_language = await get_user_language(supabase, str(current_user.id))
+    user_language = await user_repo.fetch_language(str(current_user.id))
 
-    # Fetch trace_id from the parent event
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", recording["event_id"])
-        .execute()
-    )
-    trace_id = None
-    if event_response.data:
-        trace_id = event_response.data[0].get("trace_id")
+    trace_id = await event_repo.fetch_trace_id(recording["event_id"])
 
     try:
         with story_trace_context(trace_id, str(current_user.id)):
             transcript = await transcribe_audio_url(
-                recording["audio_url"],
+                audio_path,
                 language=user_language,
             )
     except Exception as e:
@@ -361,14 +284,9 @@ async def retry_transcribe(
             detail=f"Transcription failed: {str(e)}",
         )
 
-    update_response = (
-        supabase.table("audio_recordings")
-        .update({"transcript": transcript})
-        .eq("id", str(recording_id))
-        .execute()
-    )
-
-    return update_response.data[0]
+    await recording_repo.update_transcript(str(recording_id), transcript)
+    updated = await recording_repo.fetch_by_id(str(recording_id))
+    return updated
 
 
 @router.put("/recordings/{recording_id}/transcript", response_model=AudioRecordingResponse)
@@ -377,35 +295,26 @@ async def update_recording_transcript(
     recording_id: uuid.UUID,
     body: TranscriptUpdateRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    recording_repo: RecordingRepository = Depends(get_recording_repo),
+    event_repo: EventRepository = Depends(get_event_repo),
 ):
-    """Update the encrypted transcript for a recording."""
-    supabase = await get_supabase_client()
-
-    recording_response = (
-        supabase.table("audio_recordings")
-        .select("event_id")
-        .eq("id", str(recording_id))
-        .execute()
-    )
-
-    if not recording_response.data:
+    recording = await recording_repo.fetch_by_id(str(recording_id))
+    if not recording:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recording not found",
         )
 
-    event_id = recording_response.data[0]["event_id"]
-    await get_event_for_user(supabase, event_id, str(current_user.id))
+    event = await event_repo.fetch_by_id(recording["event_id"], str(current_user.id))
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
-    update_response = (
-        supabase.table("audio_recordings")
-        .update({"transcript": body.transcript})
-        .eq("id", str(recording_id))
-        .execute()
-    )
-    require_data(update_response, "Failed to update transcript")
-
-    return update_response.data[0]
+    await recording_repo.update_transcript(str(recording_id), body.transcript)
+    updated = await recording_repo.fetch_by_id(str(recording_id))
+    return updated
 
 
 @router.post("/{event_id}/complete", status_code=status.HTTP_200_OK)
@@ -415,36 +324,21 @@ async def complete_event(
     body: CompleteEventRequest,
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Complete an event session and generate summary.
-
-    Client sends decrypted transcripts and Q&A.
-    Backend generates summary via LLM and returns plaintext result.
-    Client encrypts and stores the result.
-    """
-    supabase = await get_supabase_client()
-
-    # Fetch existing trace_id for this story session
-    event_response = (
-        supabase.table("events")
-        .select("trace_id")
-        .eq("id", str(event_id))
-        .execute()
-    )
-    trace_id = None
-    if event_response.data:
-        trace_id = event_response.data[0].get("trace_id")
+    trace_id = await event_repo.fetch_trace_id(str(event_id))
 
     with story_trace_context(trace_id, str(current_user.id)):
         result = await complete_event_session(
-            supabase=supabase,
+            event_repo=event_repo,
+            user_repo=user_repo,
             event_id=str(event_id),
             user_id=str(current_user.id),
             transcripts=body.transcripts,
             questions_and_answers=body.questions_and_answers,
         )
 
-    # Trigger evaluation during plaintext phase
     eval_payload = result.pop("_eval_payload", None)
     if eval_payload:
         from services.evaluation import evaluate_in_background, should_evaluate
@@ -465,13 +359,8 @@ async def complete_event(
 async def generate_meta_story_endpoint(
     req: MetaGenerateRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
-    """Generate a meta-story from multiple decrypted event sources.
-
-    Client sends decrypted sources (title, summary, transcripts).
-    Backend generates combined narrative via LLM and returns plaintext.
-    Client encrypts result before storing.
-    """
     settings = get_settings()
 
     if len(req.sources) < 2:
@@ -486,8 +375,7 @@ async def generate_meta_story_endpoint(
             detail=f"Maximum {settings.max_meta_story_select} sources allowed",
         )
 
-    supabase = await get_supabase_client()
-    user_language = await get_user_language(supabase, str(current_user.id))
+    user_language = await user_repo.fetch_language(str(current_user.id))
 
     langfuse_client = get_langfuse()
     if langfuse_client:
@@ -535,7 +423,6 @@ async def generate_meta_story_endpoint(
             )
         meta_trace_id = None
 
-    # Run evaluation synchronously when sampled (plaintext available here)
     eval_scores = None
     from services.evaluation import evaluate_output, should_evaluate
     if should_evaluate():
@@ -551,7 +438,6 @@ async def generate_meta_story_endpoint(
                 "completeness": eval_result.completeness,
                 "overall_score": eval_result.overall_score,
             }
-            # Log eval scores to LangFuse trace
             if meta_trace_id:
                 log_score(meta_trace_id, "factual_accuracy", eval_result.factual_accuracy or 0, "eval_type=meta_story")
                 log_score(meta_trace_id, "coherence", eval_result.coherence or 0, "eval_type=meta_story")

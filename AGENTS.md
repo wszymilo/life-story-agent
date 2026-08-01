@@ -2,7 +2,6 @@
 
 ## Project Context
 - **Primary user**: 80-year-old mother, Polish-speaking only, mobile-first (Android PWA)
-- **10-day timeline**, solo developer
 - **Language**: Polish (MVP), English (bootcamp demo)
 
 ## Key User Experience Requirements
@@ -14,8 +13,8 @@
 
 ## Tech Stack
 - **Frontend**: React 18 PWA, Tailwind CSS + shadcn/ui, TanStack Query, MediaRecorder API
-- **Backend**: Python 3.12, FastAPI, OpenAI Agents SDK, Supabase (PostgreSQL + Auth)
-- **AI**: OpenAI GPT-5-nano (LLM), Whisper (STT), TTS
+- **Backend**: Python 3.12, FastAPI, OpenAI Agents SDK, Supabase (PostgreSQL, Storage), Firebase (Auth)
+- **AI**: OpenAI GPT-4o-mini (LLM), Whisper (STT), GPT-4o-mini-tts (TTS)
 
 ## Domain Concepts
 - **Event**: Single memory/story on timeline (recording + transcript + Q&A + summary)
@@ -63,7 +62,7 @@ npm run dev
 - ALL new features must include tests
 - Backend: pytest for API routes and services
 - Frontend: Vitest + React Testing Library for components/hooks
-- Run tests before committing
+- Run tests after implementation
 
 ## Git Operations - IMPORTANT
 - **DO NOT automatically commit and push changes**
@@ -73,9 +72,10 @@ npm run dev
 
 ## Important Notes
 - Python imports require running from app/ directory (e.g., `cd app && uv run uvicorn main:app`)
-- The project uses Supabase for PostgreSQL + Auth + Storage
+- The project uses Supabase for PostgreSQL + Storage
+- The project uses Firebase for Auth
 - Use local `.env` for credentials (never commit to git)
-- **Always check whether the API you are going to use is up-to-date and in line with installed versions of libraries. SDKs and APIs evolve; verify the installed version matches the documentation and examples you are following.**
+- **Always check whether the API you are going to use is up-to-date (year: 2026) and in line with installed versions of libraries. SDKs and APIs evolve; verify the installed version matches the documentation and examples you are following.**
 
 ## Critical Files
 - `app/` - FastAPI backend (routes, services, models)
@@ -89,27 +89,15 @@ npm run dev
 4. Contextual enrichment: Wikipedia historical facts for event timeframe (world + Poland)
 
 ## Design Documentation
-- `docs/project-context1.md` - Source of truth for requirements, MVP scope, and demo script
-- `docs/docs-from-other-agents/architecture.md` - Technical patterns (adapt, don't follow verbatim)
+- `docs/system-design.md` - design document for the application - keep it up-to-date as new features are added
 
 When implementing:
 - Use `app/`/`src/` directory structure per this file (not `backend/`/`frontend/`)
-- Use GPT-5-nano as LLM (not gpt-4o-mini from architecture.md)
+- Use GPT-4o-mini as LLM
 - Reference architecture.md for service patterns and API contracts, but adapt to your decisions
 
 ## Coding Conventions
+- Explain each change in the code
 - Use DRY, KISS and SOLID principles while coding.
 - Make sure the code is tested
 - If unsure - **ASK**
-- Beautiful is better than ugly.
-- Explicit is better than implicit.
-- Simple is better than complex.
-- Complex is better than complicated.
-- Flat is better than nested.
-- Sparse is better than dense.
-- Readability counts.
-- Special cases aren't special enough to break the rules.
-- Although practicality beats purity.
-- In the face of ambiguity, refuse the temptation to guess.
-- If the implementation is hard to explain, it's a bad idea.
-- If the implementation is easy to explain, it may be a good idea.

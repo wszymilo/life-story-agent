@@ -1,9 +1,9 @@
 import structlog
-from config import get_settings
-from db.client import get_supabase_client
 from fastapi import Header, HTTPException, Request, status
 from pydantic import BaseModel
 
+from config import get_settings
+from db.repositories import UserRepository
 from services.firebase_auth import verify_firebase_token, get_firebase_user_by_email, create_firebase_user
 
 settings = get_settings()
@@ -47,29 +47,34 @@ async def get_current_user(
             detail="Token missing email claim",
         )
 
-    supabase = await get_supabase_client()
+    pool = getattr(request.app.state, "pool", None)
+    if pool is None:
+        # DB pool failed to initialize at startup — return clean 503.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable",
+        )
+    repo = UserRepository(pool)
 
-    response = supabase.table("users").select("*").eq("email", email).execute()
+    user = await repo.fetch_by_email(email)
 
-    if not response.data:
+    if not user:
         user_record = get_firebase_user_by_email(email)
         if not user_record:
             user_record = create_firebase_user(email)
 
-        response = supabase.table("users").insert({
-            "id": firebase_uid,
-            "email": email,
-            "preferred_language": "pl",
-        }).execute()
+        user = await repo.upsert(firebase_uid, email)
+        if not user:
+            # Concurrent first-login race: another request already inserted
+            # this user (ON CONFLICT DO NOTHING returned no row). Re-fetch.
+            user = await repo.fetch_by_email(email)
 
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create user",
-            )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create user",
+        )
 
-    user_data = response.data[0]
+    request.state.user_data = user
 
-    request.state.user_data = user_data
-
-    return CurrentUser(id=user_data["id"], email=user_data.get("email", ""))
+    return CurrentUser(id=user["id"], email=user.get("email", ""))
