@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
-from services.storage import StorageService
+from unittest.mock import patch
+from services.storage import StorageService, STORAGE_ROOT
 
 
 class TestStorageService:
@@ -69,3 +70,15 @@ class TestStorageService:
     async def test_default_storage_root(self):
         svc = StorageService()
         assert str(svc.root) == "/data/audio-recordings"
+
+    def test_uses_configured_audio_storage_path(self):
+        with patch("services.storage.get_settings") as mock_settings:
+            mock_settings.return_value.audio_storage_path = "/tmp/custom-audio"
+            svc = StorageService()
+            assert str(svc.root) == "/tmp/custom-audio"
+
+    def test_falls_back_to_container_root_when_unset(self):
+        with patch("services.storage.get_settings") as mock_settings:
+            mock_settings.return_value.audio_storage_path = ""
+            svc = StorageService()
+            assert str(svc.root) == str(STORAGE_ROOT)

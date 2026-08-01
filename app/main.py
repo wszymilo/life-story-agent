@@ -42,11 +42,14 @@ async def health_check():
 
 
 async def _check_db_health():
-    pool = await get_pool()
     try:
+        pool = await get_pool()
         async with pool.acquire() as conn:
             result = await conn.fetchval("SELECT COUNT(*) FROM users")
             return {"status": "connected", "user_count": result}
+    except AssertionError:
+        logger.error("db_check_failed", error="Database pool not initialized")
+        return {"status": "error", "error": "Database pool not initialized"}
     except Exception as e:
         logger.error("db_check_failed", error=str(e))
         return {"status": "error", "error": str(e)}
@@ -95,6 +98,7 @@ async def startup():
     init_sentry()
     init_langfuse()
 
+    app.state.pool = None
     if settings.database_url:
         try:
             await init_pool(settings.database_url)

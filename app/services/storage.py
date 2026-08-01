@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import Optional
 import aiofiles
 
 from api.logging_config import get_logger
+from config import get_settings
 
 logger = get_logger()
 
@@ -9,8 +11,10 @@ STORAGE_ROOT = Path("/data/audio-recordings")
 
 
 class StorageService:
-    def __init__(self, storage_root: Path = STORAGE_ROOT):
-        self.root = storage_root
+    def __init__(self, storage_root: Optional[Path] = None):
+        # Default to the configured AUDIO_STORAGE_PATH; fall back to the
+        # container volume path when unset.
+        self.root = storage_root or Path(get_settings().audio_storage_path or STORAGE_ROOT)
 
     async def upload(self, file_path: str, data: bytes, content_type: str = "audio/webm") -> str:
         full_path = self.root / file_path

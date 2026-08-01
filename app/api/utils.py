@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status

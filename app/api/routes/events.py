@@ -22,12 +22,11 @@ from api.schemas.event import (
     TranscriptUpdateRequest,
 )
 from api.utils import (
-    require_data,
     serialize_update_data,
 )
 from config import get_settings
-from db.deps import get_event_repo, get_recording_repo, get_user_repo
-from db.repositories import EventRepository, RecordingRepository, UserRepository
+from db.deps import get_evaluation_repo, get_event_repo, get_recording_repo, get_user_repo
+from db.repositories import EventRepository, RecordingRepository, UserRepository, EvaluationRepository
 from services.storage import StorageService
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
@@ -41,6 +40,18 @@ logger = get_logger()
 
 MAX_FILE_SIZE_MB = 25
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+
+async def _require_event(
+    event_repo: EventRepository,
+    event_id: str,
+    user_id: str,
+) -> dict:
+    """Fetch an event owned by user_id or raise 404 (no cross-user access)."""
+    event = await event_repo.fetch_by_id(event_id, user_id)
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    return event
 
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -100,19 +111,17 @@ async def update_event(
     event_repo: EventRepository = Depends(get_event_repo),
     recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
+    await _require_event(event_repo, str(event_id), str(current_user.id))
+
     update_data = event_update.model_dump(exclude_unset=True)
     if not update_data:
         event_data = await event_repo.fetch_by_id(str(event_id), str(current_user.id))
-        if not event_data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         recordings = await recording_repo.fetch_by_event(str(event_id))
         return {**event_data, "recordings": recordings}
 
     serialize_update_data(update_data)
     await event_repo.update(str(event_id), update_data)
     event_data = await event_repo.fetch_by_id(str(event_id), str(current_user.id))
-    if not event_data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
     return event_data
 
 
@@ -123,8 +132,11 @@ async def delete_event(
     current_user: CurrentUser = Depends(get_current_user),
     recording_repo: RecordingRepository = Depends(get_recording_repo),
     event_repo: EventRepository = Depends(get_event_repo),
+    evaluation_repo: EvaluationRepository = Depends(get_evaluation_repo),
 ):
     event_id_str = str(event_id)
+
+    await _require_event(event_repo, event_id_str, str(current_user.id))
 
     audio_paths = await recording_repo.fetch_urls_by_event(event_id_str)
     if audio_paths:
@@ -134,6 +146,7 @@ async def delete_event(
         except Exception:
             pass
 
+    await evaluation_repo.delete_for_event(event_id_str)
     await event_repo.delete(event_id_str)
 
     return {"status": "deleted", "event_id": event_id_str}
@@ -144,8 +157,10 @@ async def get_event_recordings(
     request: Request,
     event_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
     recording_repo: RecordingRepository = Depends(get_recording_repo),
 ):
+    await _require_event(event_repo, str(event_id), str(current_user.id))
     return await recording_repo.fetch_by_event(str(event_id))
 
 
@@ -208,6 +223,8 @@ async def add_recording(
 ):
     logger.info("add_recording_started", event_id=str(event_id), recording_type=recording_type, user_id=str(current_user.id))
 
+    await _require_event(event_repo, str(event_id), str(current_user.id))
+
     trace_id = await event_repo.fetch_trace_id(str(event_id))
 
     with story_trace_context(trace_id, str(current_user.id)):
@@ -241,6 +258,8 @@ async def retry_transcribe(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recording not found",
         )
+
+    await _require_event(event_repo, recording["event_id"], str(current_user.id))
 
     audio_path = recording.get("audio_url")
     if not audio_path:

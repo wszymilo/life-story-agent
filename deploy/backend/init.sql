@@ -98,7 +98,7 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS source_event_ids JSON DEFAULT '[]'::
 
 CREATE TABLE IF NOT EXISTS evaluation_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID REFERENCES events(id),
+    event_id UUID REFERENCES events(id) ON DELETE CASCADE,
     eval_type TEXT NOT NULL,
     factual_accuracy INT CHECK (factual_accuracy BETWEEN 1 AND 5),
     coherence INT CHECK (coherence BETWEEN 1 AND 5),

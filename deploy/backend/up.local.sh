@@ -3,4 +3,12 @@
 # Usage: ./deploy/backend/up.local.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-docker compose -f deploy/backend/docker-compose.yml up -d
+
+if [ ! -f .env ]; then
+  echo "Missing .env — create it first:"
+  echo "  cp deploy/backend/.env.example .env"
+  echo "  # then fill in real secrets"
+  exit 1
+fi
+
+docker compose --env-file .env -f deploy/backend/docker-compose.yml up -d

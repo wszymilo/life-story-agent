@@ -69,16 +69,16 @@ Users speak their memories naturally. The system transcribes, asks intelligent f
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | **Frontend** | React, TypeScript, Vite, Tailwind CSS | React 18, Vite 6, TS 5.6, Tailwind 3.4 |
-| **Backend** | Python, FastAPI, Pydantic | Python 3.12, FastAPI 0.115 |
-| **Database** | Supabase PostgreSQL | Managed, API-level access control |
+| **Backend** | Python, FastAPI, Pydantic, asyncpg | Python 3.12, FastAPI 0.115 |
+| **Database** | PostgreSQL (self-hosted) | 15, via Docker + asyncpg |
 | **Auth** | Firebase Auth | Magic links + Google OAuth, Firebase ID tokens |
-| **Storage** | Supabase Storage | Private bucket for audio |
+| **Storage** | Local filesystem (Docker volume) | Audio stored under `/data/audio-recordings` |
 | **LLM** | OpenAI GPT-4o-mini | Structured outputs, function calling |
 | **STT** | OpenAI Whisper | Polish + multilingual |
 | **TTS** | OpenAI gpt-4o-mini-tts | Streaming audio |
 | **Observability** | LangFuse, Sentry | Traces, costs, scores |
 | **Rate Limiting** | slowapi | Per-endpoint limits |
-| **Testing** | pytest (backend), Vitest + RTL (frontend) | 116 backend tests |
+| **Testing** | pytest (backend), Vitest + RTL (frontend) | 141 backend tests |
 
 ---
 
@@ -87,7 +87,7 @@ Users speak their memories naturally. The system transcribes, asks intelligent f
 The PWA follows a linear user flow designed for minimal cognitive load:
 
 1. **Login** — Email input, magic link sent via Firebase Auth (or Google sign-in)
-2. **Onboarding** — Capture name, birth date, country of origin, and relatives
+2. **Onboarding** — Capture name, birth date, and country of origin
 3. **Timeline** — Chronological view of all life events; tap to explore, tap + to add
 4. **Recording** — Large record button, real-time audio visualization, automatic upload
 5. **Interview** — AI asks follow-up questions via TTS; user records answers or skips
@@ -128,29 +128,31 @@ Every user session is traced end-to-end: transcript analysis, follow-up generati
 
 ### Prerequisites
 
-- Python 3.12+ with `uv`
+- Docker + Docker Compose
+- Python 3.12+ with `uv` (for backend tests / dev)
 - Node.js 20+ with npm
-- Supabase project (free tier works)
 - OpenAI API key
+- Firebase project (Web + service account credentials)
 
-### 1. Clone & Install
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/wszymilo/life-story-agent.git
 cd life-story-agent
+
+# Create backend env file and fill in secrets
+cp deploy/backend/.env.example .env
 ```
 
-### 2. Backend
+### 2. Start the Backend Stack (Docker)
 
 ```bash
-cd app
-uv venv
-uv sync
-uv run uvicorn main:app --reload
+./deploy/backend/up.local.sh
 ```
 
-Backend runs at `http://localhost:8000`  
-Health check: `http://localhost:8000/health`
+This starts **PostgreSQL 15** and the **FastAPI backend** as containers. The backend runs at `http://localhost:8000` with hot-reload (bind-mounted source, polling-based reloader). Health check: `http://localhost:8000/health`.
+
+The database schema is applied automatically on the first run from `deploy/backend/init.sql`.
 
 ### 3. Frontend
 
@@ -161,16 +163,17 @@ npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:5173`  
-Auto-proxies `/api/*` to `http://localhost:8000`
+Frontend runs at `http://localhost:5173`. Vite auto-proxies `/api/*` to `http://localhost:8000`.
 
-### 4. Environment
+### 4. Running the backend without Docker (optional)
 
-Copy `.env.example` to `.env` and fill in your credentials. See [Environment Variables](#environment-variables) below.
+```bash
+cd app
+uv sync
+uv run uvicorn main:app --reload
+```
 
-### 5. Database Migrations
-
-Run the SQL migrations in `supabase/migrations/` against your Supabase project.
+Requires a reachable PostgreSQL and a `DATABASE_URL` env var.
 
 ---
 
@@ -180,8 +183,9 @@ Run the SQL migrations in `supabase/migrations/` against your Supabase project.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
+| `DATABASE_URL` | Yes | PostgreSQL connection string (asyncpg) |
+| `DB_PASSWORD` | Yes (Docker) | PostgreSQL password used by docker-compose |
+| `AUDIO_STORAGE_PATH` | No | Audio file directory (default: `/data/audio-recordings`) |
 | `FIREBASE_CREDENTIALS` | Yes | Firebase service account JSON (escaped string) |
 | `FIREBASE_PROJECT_ID` | Yes | Firebase project ID |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
@@ -198,7 +202,7 @@ Run the SQL migrations in `supabase/migrations/` against your Supabase project.
 | `EVAL_ENABLED` | No | Enable LLM-as-judge evaluation (`true`/`false`) |
 | `EVAL_SAMPLE_RATE` | No | Fraction of sessions to evaluate (default: `0.1`) |
 
-### Frontend (Vite — also in `.env` or `.env.local`)
+### Frontend (Vite — in `.env.local`)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -206,8 +210,7 @@ Run the SQL migrations in `supabase/migrations/` against your Supabase project.
 | `VITE_FIREBASE_AUTH_DOMAIN` | Yes | Firebase auth domain |
 | `VITE_FIREBASE_PROJECT_ID` | Yes | Firebase project ID |
 | `VITE_FIREBASE_APP_ID` | Yes | Firebase app ID |
-| `VITE_API_URL` | No | Backend URL (default: `http://localhost:8000`) |
-| `VITE_SUPABASE_URL` | No | Supabase URL (for storage fallback) |
+| `API_URL` | No | Backend URL used by `vercel.json` routing (default: `http://localhost:8000`) |
 
 ---
 
@@ -220,7 +223,7 @@ cd app
 uv run pytest
 ```
 
-**116 tests** covering routes, services, AI pipelines, auth, rate limiting, LangFuse integration, and evaluation. Run before every commit.
+**141 tests** covering routes, services, AI pipelines, auth, rate limiting, LangFuse integration, and evaluation. Run before every commit.
 
 ### Frontend
 
@@ -247,29 +250,29 @@ npm run typecheck
 
 ## Deployment
 
-### Backend — Railway
+There are two deployment paths:
 
-The FastAPI backend is deployed on Railway. The production URL is configured in `vercel.json` for frontend API proxying.
+### Local (Docker Compose, hot-reload)
 
-### Frontend — Vercel
+```bash
+./deploy/backend/up.local.sh
+```
 
-The React PWA is deployed on Vercel. `vercel.json` handles:
-- API route proxying to the Railway backend
-- SPA routing (all paths → `index.html`)
+### Production (VPS + Cloudflare + Caddy)
 
-### CI/CD
+- **Backend**: FastAPI in Docker on a VPS (`eve146.mikrus.xyz`, IPv6), served via **Caddy** on the public port `:20146`, TLS terminated with a Cloudflare Origin CA certificate. PostgreSQL and backend containers publish only to loopback.
+- **Database**: self-hosted PostgreSQL 15 in Docker (persistent volume).
+- **Storage**: local Docker volume (`/data/audio-recordings`).
+- **Frontend**: React PWA on Vercel. `vercel.json` routes `/api/*` to the `API_URL` environment variable (production: `https://xapi.lifestoryagent.uk`).
+- **CI/CD**: GitHub Actions runs unit tests (backend + frontend), then SSH-deploys to the VPS on pushes to `main` (`git pull` + `docker compose up -d --build`).
 
-GitHub Actions runs on every push and PR:
-- **Backend**: lint (ruff), type check (mypy), tests (pytest)
-- **Frontend**: lint (eslint), type check (tsc), tests (vitest), build (vite)
-
-See `.github/workflows/ci.yml` for details.
+See [`docs/supabase-removal/production-deployment.md`](docs/supabase-removal/production-deployment.md) for the full production guide.
 
 ---
 
 ## Roadmap & Known Limitations
 
-This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned improvements:
+This is an MVP built as a bootcamp demo. Known gaps and planned improvements:
 
 | Area | Current State | Future |
 |------|--------------|--------|
@@ -279,7 +282,7 @@ This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned impro
 | **Map integration** | Places stored but not visualized | Interactive map of life events |
 | **Multi-language** | Polish + English (188 keys) | Full i18n with user language selection |
 | **Accessibility** | Large text/buttons, voice-first | Screen reader optimization, high contrast mode |
-| **Audio storage** | Supabase Storage private bucket | Compression, lifecycle policies, CDN delivery |
+| **Audio storage** | Local filesystem Docker volume | Compression, lifecycle policies, CDN delivery |
 | **Evaluation** | 10% sample rate, async | Real-time quality gates, A/B testing for prompts |
 | **Native app** | PWA only | Capacitor wrapper for app store distribution |
 
@@ -290,9 +293,9 @@ This is an MVP built in 10 days as a bootcamp demo. Known gaps and planned impro
 | Document | Purpose |
 |----------|---------|
 | [`docs/system-design.md`](./docs/system-design.md) | Full architecture: data flow, encryption, generator-reviewer pattern, Mermaid diagrams |
-| [`docs/api-spec.md`](./docs/api-spec.md) | Complete backend API specification: endpoints, schemas, auth, errors, rate limits |
-
-
+| [`docs/supabase-removal/local-and-production-setup.md`](./docs/supabase-removal/local-and-production-setup.md) | Local dev + production setup, environment strategy, deployment |
+| [`docs/supabase-removal/production-deployment.md`](./docs/supabase-removal/production-deployment.md) | Production VPS deployment guide (Cloudflare, Caddy, CI/CD) |
+| [`docs/supabase-removal/plan.md`](./docs/supabase-removal/plan.md) | Historical Supabase removal + migration plan |
 
 ---
 

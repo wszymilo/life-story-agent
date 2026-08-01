@@ -10,7 +10,7 @@ The primary design driver is accessibility for an 80-year-old Polish-speaking us
 
 ## 2. High-Level System Architecture
 
-The system follows a three-tier architecture with a Progressive Web App (PWA) frontend, a FastAPI backend, and managed cloud services for data persistence and AI inference.
+The system follows a three-tier architecture with a Progressive Web App (PWA) frontend, a FastAPI backend, and self-hosted services (PostgreSQL + local filesystem on a VPS) with managed AI inference.
 
 ```mermaid
 graph TB
@@ -42,10 +42,10 @@ graph TB
         S[TTS gpt-4o-mini-tts]
     end
 
-    subgraph External["Managed Services"]
-        T[(Supabase PostgreSQL)]
+    subgraph External["Services"]
+        T[(PostgreSQL 15 — VPS Docker volume)]
         U[Firebase Auth]
-        V[Supabase Storage]
+        V[Local filesystem — VPS Docker volume]
     end
 
     A --> I
@@ -57,8 +57,8 @@ graph TB
     G --> J
     H --> P
 
-    J --> T
-    J --> V
+    J --> T   (asyncpg)
+    J --> V   (aiofiles)
     K --> R
     L --> S
     M --> R
@@ -77,10 +77,10 @@ graph TB
 | Component | Technology | Responsibility |
 |-----------|-----------|----------------|
 | Frontend | React 18, Tailwind CSS, Vite | PWA with voice-first UI, client-side encryption, offline PWA shell |
-| Backend | Python 3.12, FastAPI | REST API, auth middleware, service orchestration |
-| Database | Supabase PostgreSQL | User profiles, events, recordings, questions, evaluations |
+| Backend | Python 3.12, FastAPI, asyncpg | REST API, auth middleware, service orchestration |
+| Database | PostgreSQL 15 (Docker on VPS) | User profiles, events, recordings, questions, evaluations |
 | Auth | Firebase Auth | Magic link + Google OAuth, Firebase ID tokens |
-| Storage | Supabase Storage | Private audio bucket for webm recordings |
+| Storage | Local filesystem (Docker volume on VPS) | Audio files served through the backend |
 | LLM | OpenAI GPT-4o-mini | Transcript analysis, follow-up questions, summaries, titles |
 | STT | OpenAI Whisper | Audio transcription with Polish language support |
 | TTS | OpenAI gpt-4o-mini-tts | Streaming text-to-speech for questions and summaries |
@@ -126,7 +126,7 @@ graph TB
 
 ### 3.4 Streaming TTS over Stored Audio
 
-**Decision**: Stream TTS audio directly to the client instead of storing in Supabase Storage.
+**Decision**: Stream TTS audio directly to the client instead of storing audio files.
 
 **Rationale**:
 - TTS generation is fast (~500ms for short text)
@@ -135,18 +135,18 @@ graph TB
 
 **Trade-off**: Repeated TTS for the same text regenerates audio each time.
 
-### 3.5 Firebase Auth + Supabase Storage
+### 3.5 Firebase Auth + Self-Hosted PostgreSQL
 
-**Decision**: Use Firebase Authentication with Supabase for database and storage.
+**Decision**: Use Firebase Authentication with a self-hosted PostgreSQL database and local filesystem storage.
 
 **Rationale**:
 - Firebase provides reliable magic link + Google OAuth authentication
 - Backend verifies Firebase ID tokens directly (no Supabase Auth JWT)
-- Supabase managed PostgreSQL with backups for structured data
-- Supabase Storage for audio files
-- Free tiers sufficient for MVP
+- PostgreSQL 15 in Docker with a persistent volume for structured data
+- Local filesystem Docker volume for audio files (no network hop, lower latency)
+- Single VPS eliminates dependency on external managed services
 
-**Trade-off**: Two separate auth systems (Firebase for auth, Supabase for data) vs. a unified Supabase Auth approach.
+**Trade-off**: Two separate auth systems (Firebase for auth, PostgreSQL for data) vs. a unified Supabase Auth approach. Operating the database requires VPS maintenance (backups, upgrades) vs. a fully managed service.
 
 ---
 
@@ -162,8 +162,8 @@ sequenceDiagram
     participant STT as Whisper (OpenAI)
     participant LLM as GPT-4o-mini (OpenAI)
     participant TTS as TTS (OpenAI)
-    participant DB as Supabase DB
-    participant S3 as Supabase Storage
+    participant DB as PostgreSQL (VPS)
+    participant FS as Local Filesystem (VPS)
 
     User->>FE: Tap "Add Memory"
     FE->>BE: POST /api/events (create draft)
@@ -174,13 +174,13 @@ sequenceDiagram
     User->>FE: Press Record, tell story
     FE->>FE: MediaRecorder API (webm)
     FE->>BE: POST /api/events/{id}/recordings (multipart)
-    BE->>S3: Upload audio.webm
-    S3-->>BE: public_url
-    BE->>STT: transcribe_audio_url(url, language='pl')
+    BE->>FS: Write audio.webm
+    FS-->>BE: file_path
+    BE->>STT: transcribe_audio_url(path, language='pl')
     STT-->>BE: transcript (Polish)
-    BE->>DB: INSERT audio_recordings (url, transcript)
+    BE->>DB: INSERT audio_recordings (path, transcript)
     DB-->>BE: recording_id
-    BE-->>FE: {recording_id, transcript, audio_url}
+    BE-->>FE: {recording_id, transcript, audio_path}
     FE->>FE: Display transcript
 
     User->>FE: Tap "Continue"
@@ -292,12 +292,12 @@ flowchart LR
 
     subgraph Backend["Backend (FastAPI)"]
         E[API Routes]
-        F[Supabase Client]
+        F[asyncpg + repositories]
     end
 
-    subgraph Database["Supabase"]
+    subgraph Database["PostgreSQL (Docker on VPS)"]
         G[(PostgreSQL)]
-        H[Storage Bucket]
+        H[Local audio volume]
     end
 
     A -->|generateKey| B
@@ -333,7 +333,7 @@ sequenceDiagram
     participant Crypto as Web Crypto
     participant BE as Backend
     participant LLM as GPT-4o-mini
-    participant DB as Supabase
+    participant DB as PostgreSQL
 
     FE->>DB: SELECT events (ciphertext)
     DB-->>FE: encrypted titles, summaries, transcripts
@@ -361,25 +361,26 @@ This **Dance Flow** ensures that:
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
 | Frontend Framework | React | 18 | UI components, state management |
-| Frontend Build | Vite | 5 | Dev server, bundling, PWA manifest |
+| Frontend Build | Vite | 6 | Dev server, bundling, PWA manifest |
 | Styling | Tailwind CSS | 3 | Utility-first CSS, responsive design |
-| UI Components | shadcn/ui | — | Accessible component primitives |
-| State Management | TanStack Query | 5 | Server state caching, mutations |
+| UI Components | Custom (Tailwind) | — | Hand-built accessible components |
+| State Management | React Context + local state | — | Auth state, profile, feature state |
 | Auth Context | React Context | — | Global auth state, profile |
 | Frontend Auth | Firebase JS SDK | — | Magic link + Google OAuth, ID token management |
 | Backend Framework | FastAPI | 0.115 | REST API, dependency injection |
 | Python | CPython | 3.12 | Runtime |
-| Async HTTP | httpx | — | Supabase client, external APIs |
-| Database ORM | Supabase Python SDK | 2 | PostgreSQL client |
+| Async HTTP | httpx | — | External APIs (OpenAI, etc.) |
+| Database Driver | asyncpg | 0.31 | Async PostgreSQL client |
+| Async File I/O | aiofiles | 25.1 | Local filesystem audio read/write |
 | Auth/JWT | firebase-admin | — | Firebase ID token verification |
 | Logging | structlog | — | Structured JSON logging |
 | Rate Limiting | slowapi | — | API rate limiting |
-| LLM Client | OpenAI Python SDK | 1 | GPT-4o-mini, TTS, Whisper |
-| Database | PostgreSQL | 15 | Managed by Supabase |
-| Object Storage | Supabase Storage | — | Private audio bucket |
+| LLM Client | OpenAI Python SDK | — | GPT-4o-mini, TTS, Whisper |
+| Database | PostgreSQL | 15 | Self-hosted (Docker volume on VPS) |
+| Object Storage | Local filesystem | — | Docker volume for audio files |
 | Error Tracking | Sentry | — | Exception capture |
 | Tracing | LangFuse | — | Full LLM trace observability with token usage, cost tracking, and scoring |
-| Hosting (BE) | Railway | — | Container deployment |
+| Hosting (BE) | VPS (Docker Compose) | — | FastAPI + PostgreSQL + Caddy containers |
 | Hosting (FE) | Vercel | — | Static + edge deployment |
 
 ---
@@ -487,15 +488,14 @@ graph TB
         C[Serverless Functions]
     end
 
-    subgraph Railway["Railway (Container)"]
-        D[FastAPI Backend]
-        E[Python 3.12 Runtime]
+    subgraph VPS["VPS (Docker Compose)"]
+        D[Caddy Reverse Proxy :20146]
+        E[FastAPI Backend :8000]
     end
 
-    subgraph Supabase["Supabase Project"]
-        F[(PostgreSQL)]
-        G[Storage Bucket]
-        H[PostgREST API]
+    subgraph VPS_Data["VPS (Docker Volumes)"]
+        F[(PostgreSQL 15)]
+        G[Audio Files Volume]
     end
 
     subgraph OpenAI["OpenAI Platform"]
@@ -511,26 +511,26 @@ graph TB
     end
 
     A -->|HTTPS| B
-    A -->|API Calls<br/>Authorization: Bearer Firebase ID Token| D
-    D -->|Supabase SDK| F
-    D -->|Supabase Storage| G
-    D -->|HTTP/JSON| H
-    D -->|HTTP/JSON| J
-    D -->|HTTP/JSON| K
-    D -->|HTTP/JSON| L
-    D -->|DSN| M
-    D -->|SDK| N
-    D -->|JSON logs| O
+    A -->|API Calls via Cloudflare<br/>xapi.lifestoryagent.uk| D
+    D -->|reverse_proxy localhost:8000| E
+    E -->|asyncpg| F
+    E -->|aiofiles| G
+    E -->|HTTP/JSON| J
+    E -->|HTTP/JSON| K
+    E -->|HTTP/JSON| L
+    E -->|DSN| M
+    E -->|SDK| N
+    E -->|JSON logs| O
 ```
 
 ### Environment Configuration
 
 | Service | Local Dev | Production |
 |---------|-----------|------------|
-| Frontend | `https://localhost:5173` | `https://life-story-agent-h63l.vercel.app` |
-| Backend | `http://localhost:8000` | `https://life-story-agent-production.up.railway.app` |
-| Database | Local Postgres via Docker | Supabase managed PostgreSQL |
-| Storage | Supabase (shared) | Supabase (shared) |
+| Frontend | `http://localhost:5173` | `https://www.lifestoryagent.uk` (Vercel) |
+| Backend | `http://localhost:8000` | `https://xapi.lifestoryagent.uk` (Cloudflare → Caddy `:20146`) |
+| Database | PostgreSQL 15 Docker container | PostgreSQL 15 Docker container (same VPS) |
+| Storage | Local Docker volume | Local Docker volume (same VPS) |
 | AI APIs | OpenAI (live) | OpenAI (live) |
 
 ---
@@ -546,9 +546,9 @@ graph TB
 ### Data Protection
 
 - **Client-Side Encryption**: AES-256-GCM for all user-generated text. Keys never transmitted.
-- **API-Level Access Control**: All database access is controlled by the API layer which validates Firebase ID tokens before every operation. RLS is disabled on all tables.
-- **Private Storage**: Audio bucket is private; all playback goes through authenticated streaming endpoints.
-- **HTTPS Everywhere**: Local dev uses self-signed certs; production uses automatic HTTPS via hosting providers.
+- **API-Level Access Control**: All database access is controlled by the API layer which validates Firebase ID tokens before every operation. Ownership is enforced per endpoint (events and recordings are scoped to the authenticated user).
+- **Private Storage**: Audio files are stored on a local Docker volume; all playback goes through authenticated streaming endpoints. The volume is not exposed directly to the internet.
+- **HTTPS Everywhere**: Production terminates TLS at Cloudflare and at Caddy on the VPS (Cloudflare Origin CA certificate).
 
 ### Rate Limiting & Abuse Prevention
 
@@ -718,4 +718,4 @@ flowchart LR
 
 ---
 
-*Document version: 1.4 | Last updated: 2026-05-18*
+*Document version: 2.0 | Last updated: 2026-07-30*

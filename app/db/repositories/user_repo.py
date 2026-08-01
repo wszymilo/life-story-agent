@@ -27,6 +27,8 @@ class UserRepository:
     async def update_profile(self, user_id: str, data: dict[str, Any]) -> None:
         if not data:
             return
+        # NOTE: column names come from pydantic model_dump(exclude_unset=True)
+        # or hardcoded dicts — keep them out of raw user input.
         sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(data.keys()))
         values = list(data.values())
         async with self.pool.acquire() as conn:

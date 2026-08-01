@@ -5,6 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 git pull
-docker compose -f deploy/backend/docker-compose.yml \
+docker compose --env-file .env \
+               -f deploy/backend/docker-compose.yml \
                -f deploy/backend/docker-compose.prod.yml \
                up -d --build

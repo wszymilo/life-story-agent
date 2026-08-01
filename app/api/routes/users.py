@@ -1,5 +1,4 @@
 import uuid
-from typing import Any
 
 from api.deps import CurrentUser, get_current_user
 from api.schemas.user import (

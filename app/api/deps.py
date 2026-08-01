@@ -47,7 +47,13 @@ async def get_current_user(
             detail="Token missing email claim",
         )
 
-    pool = request.app.state.pool
+    pool = getattr(request.app.state, "pool", None)
+    if pool is None:
+        # DB pool failed to initialize at startup — return clean 503.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable",
+        )
     repo = UserRepository(pool)
 
     user = await repo.fetch_by_email(email)
@@ -58,6 +64,16 @@ async def get_current_user(
             user_record = create_firebase_user(email)
 
         user = await repo.upsert(firebase_uid, email)
+        if not user:
+            # Concurrent first-login race: another request already inserted
+            # this user (ON CONFLICT DO NOTHING returned no row). Re-fetch.
+            user = await repo.fetch_by_email(email)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create user",
+        )
 
     request.state.user_data = user
 

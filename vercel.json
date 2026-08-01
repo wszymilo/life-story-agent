@@ -3,7 +3,7 @@
   "routes": [
     {
       "src": "^/api/(.*)",
-      "dest": "$API_URL/$1",
+      "dest": "$API_URL/api/$1",
       "env": ["API_URL"]
     },
     { "src": "/(.*)", "dest": "/index.html" }

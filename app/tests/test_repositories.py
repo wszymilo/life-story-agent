@@ -172,3 +172,16 @@ class TestEvaluationRepository:
         result = await repo.count("summary")
 
         assert result == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_for_event(self, mock_pool):
+        conn = mock_pool.acquire.return_value.__aenter__.return_value
+        conn.execute = AsyncMock()
+
+        repo = EvaluationRepository(mock_pool)
+        await repo.delete_for_event("evt-1")
+
+        conn.execute.assert_called_once()
+        call_sql, event_id = conn.execute.call_args[0]
+        assert "DELETE FROM evaluation_results" in call_sql
+        assert event_id == "evt-1"

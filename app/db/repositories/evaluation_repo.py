@@ -7,6 +7,7 @@ class EvaluationRepository:
         self.pool = pool
 
     async def insert(self, data: dict[str, Any]) -> None:
+        # NOTE: column names come from hardcoded dicts in the service layer.
         columns = ", ".join(data.keys())
         placeholders = ", ".join(f"${i+1}" for i in range(len(data)))
         values = list(data.values())
@@ -43,3 +44,11 @@ class EvaluationRepository:
                 return await conn.fetchval(
                     "SELECT COUNT(*) FROM evaluation_results"
                 )
+
+    async def delete_for_event(self, event_id: str) -> None:
+        """Delete all evaluation rows for an event (idempotent)."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM evaluation_results WHERE event_id = $1",
+                event_id,
+            )

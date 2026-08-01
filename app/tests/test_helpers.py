@@ -1,6 +1,5 @@
 from datetime import date, datetime
 
-import pytest
 from api.utils import (
     get_transcripts_from_recordings,
     serialize_update_data,

@@ -7,8 +7,8 @@ from api.schemas.evaluation import (
     EvaluationScores,
 )
 from config import get_settings
-from db.deps import get_evaluation_repo
-from db.repositories import EvaluationRepository
+from db.deps import get_evaluation_repo, get_event_repo
+from db.repositories import EvaluationRepository, EventRepository
 from fastapi import APIRouter, Depends, HTTPException
 from services.evaluation import store_evaluation_scores
 
@@ -63,12 +63,17 @@ async def get_dashboard(
 async def store_scores(
     data: EvaluationScoresStore,
     current_user: CurrentUser = Depends(get_current_user),
+    event_repo: EventRepository = Depends(get_event_repo),
 ):
+    event = await event_repo.fetch_by_id(str(data.event_id), str(current_user.id))
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
     scores = EvaluationScores(
         factual_accuracy=data.factual_accuracy,
         coherence=data.coherence,
         completeness=data.completeness,
         overall_score=data.overall_score,
     )
-    await store_evaluation_scores(data.event_id, data.eval_type, scores)
+    await store_evaluation_scores(str(data.event_id), data.eval_type, scores)
     return {"status": "stored"}
