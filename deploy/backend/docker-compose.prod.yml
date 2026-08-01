@@ -1,7 +1,8 @@
 services:
   postgres:
-    ports:
-      - "127.0.0.1:5432:5432"        # loopback only — not publicly exposed
+    # No host port in production — reached via the compose network only
+    # (DATABASE_URL uses the `postgres` service name). Admin access:
+    # docker compose exec postgres psql -U app life_story_agent
 
   backend:
     command: uvicorn main:app --host 0.0.0.0 --port 8000

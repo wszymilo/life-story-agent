@@ -11,4 +11,6 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-docker compose --env-file .env -f deploy/backend/docker-compose.yml up -d
+docker compose --env-file .env \
+  -f deploy/backend/docker-compose.yml \
+  -f deploy/backend/docker-compose.local.yml up -d

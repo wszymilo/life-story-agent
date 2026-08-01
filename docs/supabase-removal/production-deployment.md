@@ -20,12 +20,13 @@ Caddy (host networking, listens :20146)
 backend (uvicorn, no reload, loopback :8000)
     │
     ▼
-postgres (loopback :5432)
+postgres (compose network only — no host port)
 ```
 
 - **Public ingress**: the single port **20146** on the VPS IPv6.
 - **Caddy** uses `network_mode: host` so it binds `:20146` directly on the host network stack (most reliable for IPv6-only hosts; no Docker IPv6 port-proxy in the path).
-- **backend** and **postgres** publish only to `127.0.0.1` — never publicly reachable.
+- **backend** publishes only to `127.0.0.1:8000` — never publicly reachable; **postgres** publishes **no host port** in production (reached only via the compose network using the `postgres` service name). Admin access: `docker compose exec postgres psql -U app life_story_agent`.
+- **Ports are defined in the environment override files, not the base compose** — Docker Compose v2 *appends* `ports` across override files, so defining them in both the base and an override would duplicate the bind and fail with "address already in use". Local ports live in `docker-compose.local.yml`; prod ports in `docker-compose.prod.yml`.
 - **Code sync**: `git pull` on the VPS updates the bind-mounted `app/` (no image rebuild needed for code changes). Rebuilds happen only when dependencies change (`--build`).
 
 ---

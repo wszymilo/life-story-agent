@@ -1,9 +1,11 @@
 services:
+  # Port publishing is environment-specific and lives in the override files
+  # (docker-compose.local.yml for dev, docker-compose.prod.yml for prod).
+  # Compose v2 APPENDS ports across override files, so defining them here as
+  # well would duplicate the bind and fail with "address already in use".
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../../deploy/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,8 +24,6 @@ services:
       context: ../..
       dockerfile: deploy/backend/Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     volumes:
       - audio-data:/data/audio-recordings
       # Bind mount source code (not .venv) for hot-reload
