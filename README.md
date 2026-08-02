@@ -210,7 +210,7 @@ Requires a reachable PostgreSQL and a `DATABASE_URL` env var.
 | `VITE_FIREBASE_AUTH_DOMAIN` | Yes | Firebase auth domain |
 | `VITE_FIREBASE_PROJECT_ID` | Yes | Firebase project ID |
 | `VITE_FIREBASE_APP_ID` | Yes | Firebase app ID |
-| `API_URL` | No | Backend URL used by `vercel.json` routing (default: `http://localhost:8000`) |
+| `API_URL` | No | Backend URL used by `vercel.ts` routing (default: `http://localhost:8000`) |
 
 ---
 
@@ -263,7 +263,7 @@ There are two deployment paths:
 - **Backend**: FastAPI in Docker on a VPS (`eve146.mikrus.xyz`, IPv6), served via **Caddy** on the public port `:20146`, TLS terminated with a Cloudflare Origin CA certificate. PostgreSQL and backend containers publish only to loopback.
 - **Database**: self-hosted PostgreSQL 15 in Docker (persistent volume).
 - **Storage**: local Docker volume (`/data/audio-recordings`).
-- **Frontend**: React PWA on Vercel. `vercel.json` routes `/api/*` to the `API_URL` environment variable (production: `https://xapi.lifestoryagent.uk`).
+- **Frontend**: React PWA on Vercel. `vercel.ts` routes `/api/*` to the `API_URL` environment variable (production: `https://xapi.lifestoryagent.uk`) and falls back to `index.html` for SPA routing.
 - **CI/CD**: GitHub Actions runs unit tests (backend + frontend), then SSH-deploys to the VPS on pushes to `main` (`git pull` + `docker compose up -d --build`).
 
 See [`docs/supabase-removal/production-deployment.md`](docs/supabase-removal/production-deployment.md) for the full production guide.

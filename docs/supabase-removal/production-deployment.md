@@ -159,4 +159,4 @@ cd /home/lsa/life-story-agent
 | `deploy/backend/up.local.sh` | Local dev: compose up (hot-reload) |
 | `deploy/scripts/setup-vps.sh` | One-time VPS bootstrap |
 | `.github/workflows/ci.yml` | CI (unit+unit) + SSH deploy |
-| `vercel.json` | Frontend routing via `$API_URL` (prod value: `https://xapi.lifestoryagent.uk`) |
+| `vercel.ts` | Frontend routing via `API_URL` env var (prod value: `https://xapi.lifestoryagent.uk`) + SPA fallback |

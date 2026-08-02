@@ -8,9 +8,9 @@
 
 ## Principles
 
-1. **Single `vercel.json` for all environments** — Vercel's `routes` property supports `${VAR}` expansion from environment variables. The same `vercel.json` resolves `$API_URL` to the correct backend URL in local dev and production without manual changes.
-2. **One `docker-compose.yml` for both local and production** — differences handled via `.env` overrides and a production-only `docker-compose.prod.yml`.
-3. **`deploy/` directory groups deployment artifacts** — all backend deployment files (Dockerfile, compose files, Caddyfile) live under `deploy/backend/`. Root keeps only what must be there: `vercel.json` (Vercel requirement), `.env`, `.env.local`, and source directories.
+1. **Single `vercel.ts` for all environments** — a programmatic Vercel config (`rewrites` + `process.env.API_URL`) resolves the correct backend URL at build time in local dev and production without manual changes.
+2. **One `docker-compose.yml` for both local and production** — differences handled via `docker-compose.local.yml` / `docker-compose.prod.yml` overrides (ports live in the overrides, never the base — Compose v2 appends `ports`).
+3. **`deploy/` directory groups deployment artifacts** — all backend deployment files (Dockerfile, compose files, Caddyfile) live under `deploy/backend/`. Root keeps only what must be there: `vercel.ts` (Vercel requirement), `.env`, `.env.local`, and source directories.
 
 ---
 
@@ -18,7 +18,7 @@
 
 ```
 /
-├── vercel.json                      # Vercel config (must be at root)
+├── vercel.ts                        # Vercel config (must be at root)
 ├── .env                             # Backend env vars (gitignored)
 ├── .env.local                       # Frontend env vars for vercel dev (gitignored)
 ├── app/                             # Backend Python code
@@ -48,7 +48,7 @@
   ┌─────────────────────────┐          ┌─────────────────────────────┐
   │  vercel dev (port 3000) │──/api/*──▶  backend (port 8000)       │
   │  - serves static files  │  ────────▶  postgres (port 5432)      │
-  │  - applies vercel.json  │  HTTP     └─────────────────────────────┘
+  │  - applies vercel.ts    │  HTTP     └─────────────────────────────┘
   │    routes ──────────────┘
   └─────────────────────────┘
 ```
@@ -57,33 +57,34 @@ No Caddy locally — `vercel dev` proxies directly to the backend container on p
 
 ---
 
-## Key File: `vercel.json` (environment-aware via `routes` + `env`)
+## Key File: `vercel.ts` (environment-aware via `rewrites` + build-time env)
 
-Vercel's `routes` property (not `rewrites`) supports environment variable expansion in destinations. The `env` array whitelists which variables can be expanded at request time:
+`vercel.ts` is a programmatic config evaluated at build time. It uses `rewrites` (which give the filesystem precedence, so static assets are served normally) and reads the `API_URL` env var per environment:
 
-```json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "routes": [
-    {
-      "src": "^/api/(.*)",
-      "dest": "$API_URL/$1",
-      "env": ["API_URL"]
-    },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
-}
+```typescript
+import { routes, type VercelConfig } from '@vercel/config/v1';
+
+const apiUrl = process.env.API_URL ?? 'http://localhost:8000';
+
+export const config: VercelConfig = {
+  rewrites: [
+    routes.rewrite('/api/:path*', `${apiUrl}/api/:path*`),
+    routes.rewrite('/(.*)', '/index.html'),   // SPA fallback
+  ],
+};
 ```
 
-How `$API_URL` is resolved:
+Why `rewrites` and not `routes`: `rewrites` check the filesystem first, so `/assets/*.css` / `*.js` are served as real files; the catch-all only catches non-file SPA paths. The earlier `routes` approach rewrote assets to `index.html`, which broke the page (assets served as `text/html`).
+
+How `API_URL` is resolved:
 
 | Environment | Source of `API_URL` | Value |
 |-------------|---------------------|-------|
 | `vercel dev` (local) | `.env.local` file | `http://localhost:8000` |
-| Vercel Production deploy | Dashboard → Environment Variables → Production | `https://api.lifestoryagent.uk` |
+| Vercel Production deploy | Dashboard → Environment Variables → Production | `https://xapi.lifestoryagent.uk` |
 | Vercel Preview deploy | Dashboard → Environment Variables → Preview | `https://preview-api.lifestoryagent.uk` |
 
-**One `vercel.json`, no manual switching.** Vercel injects the correct `$API_URL` based on where the code runs.
+**One `vercel.ts`, no manual switching.** `process.env.API_URL` is resolved at build time to the correct backend per environment.
 
 ---
 
@@ -242,7 +243,7 @@ VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-firebase-project
 VITE_FIREBASE_APP_ID=xxx
 
-# Used by vercel.json routes — points to local Docker backend
+# Used by vercel.ts rewrites — points to local Docker backend
 API_URL=http://localhost:8000
 ```
 
@@ -327,17 +328,17 @@ Set these in **Vercel Dashboard → Project → Settings → Environment Variabl
 
 ## Key Design Decisions
 
-### `routes` + `env` over `rewrites`
+### `vercel.ts` (`rewrites` + build-time env) over `routes`/`env`
 
-`rewrites` does not support environment variable expansion. `routes` does, via the `env` property. This is the only way to have a single `vercel.json` work across local dev and production without manual edits or separate config files.
+`routes` with the `env` array supported request-time expansion but did **not** give the filesystem precedence — its catch-all rewrote static assets to `index.html`, breaking the page (assets served as `text/html`). `vercel.ts` is evaluated at build time: it uses `rewrites` (which serve real files first, so assets load correctly) and reads `process.env.API_URL` per environment, giving one config that works across local and production.
 
 ### Why `vercel dev` over `npm run dev`
 
-`vercel dev` applies `vercel.json` routing locally, including the `routes` + `env` resolution. `npm run dev` (Vite) doesn't — you'd need a separate Vite proxy config. `vercel dev` gives a production-identical frontend environment.
+`vercel dev` applies the Vercel routing locally (`vercel.ts` rewrites + `API_URL`), matching production. `npm run dev` (Vite) uses its own proxy in `vite.config.ts` instead — useful for a quick local check against a specific backend, but not identical to Vercel routing.
 
 ### Why no Caddy locally
 
-Caddy's primary job is TLS termination for `api.lifestoryagent.uk`, which requires a real domain and DNS. Locally, `vercel dev` proxying directly to `localhost:8000` over HTTP is simpler and sufficient. Caddy appears only in `docker-compose.prod.yml`.
+Caddy's primary job is TLS termination for `xapi.lifestoryagent.uk`, which requires a real domain and DNS. Locally, proxying directly to `localhost:8000` over HTTP is simpler and sufficient. Caddy appears only in `docker-compose.prod.yml`.
 
 ### Hot reload for backend
 
@@ -345,7 +346,7 @@ Caddy's primary job is TLS termination for `api.lifestoryagent.uk`, which requir
 
 ### Why `deploy/` directory
 
-Groups all deployment artifacts in one place. The root keeps only the files that must be there: `vercel.json` (Vercel requires it at root), plus `.env`, `.env.local`, and source directories. Docker Compose commands use `-f deploy/backend/docker-compose.yml`.
+Groups all deployment artifacts in one place. The root keeps only the files that must be there: `vercel.ts` (Vercel requires it at root), plus `.env`, `.env.local`, and source directories. Docker Compose commands use `-f deploy/backend/docker-compose.yml`.
 
 ---
 
